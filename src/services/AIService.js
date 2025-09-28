@@ -348,7 +348,535 @@ console.log('AIService: Verification - key length:', storedKey?.length);
 
   }
 
+      // Add this method to your AIService.js class
+
+async getSessionRecommendations(sessions, userProfile = {}) {
+  if (!this.initialized) {
+    await this.initialize();
+  }
+
+  try {
+    console.log('AIService: Generating session recommendations');
+    
+    const bestService = this.getBestServiceForTask('session_recommendations');
+    
+    switch (bestService) {
+      case 'tensorflow':
+        return await this.getSessionRecommendationsWithTensorFlow(sessions, userProfile);
+      
+      case 'huggingface':
+        return await this.getSessionRecommendationsWithHuggingFace(sessions, userProfile);
+      
+      default:
+        return await this.getSessionRecommendationsWithFallback(sessions, userProfile);
+    }
+  } catch (error) {
+    console.error('AIService: Session recommendations failed:', error);
+    return await this.getSessionRecommendationsWithFallback(sessions, userProfile);
+  }
+}
+
+// TensorFlow-based recommendations
+async getSessionRecommendationsWithTensorFlow(sessions, userProfile) {
+  try {
+    console.log('AIService: Using TensorFlow for session recommendations');
+    
+    const recommendations = [];
+    
+    // Analyze session patterns
+    const sessionAnalysis = this.analyzeSessionPatterns(sessions);
+    
+    // Get TensorFlow enhancement suggestions
+    const tfRecommendations = await TensorFlowService.generateCoachingTips({
+      sport: userProfile.sport || 'general',
+      ageGroup: userProfile.ageGroup || 'adult',
+      experience: userProfile.experience || 'intermediate',
+      sessionCount: sessions.length,
+      patterns: sessionAnalysis
+    });
+    
+    // Convert TF tips to session recommendations
+    if (tfRecommendations.tips) {
+      tfRecommendations.tips.forEach((tip, index) => {
+        recommendations.push({
+          id: `tf_rec_${index}`,
+          type: 'coaching_tip',
+          priority: tip.importance === 'critical' ? 'high' : 'medium',
+          title: this.extractTipTitle(tip.tip || tip),
+          description: tip.tip || tip,
+          category: tip.category || 'general',
+          confidence: tfRecommendations.confidence || 0.85,
+          source: 'tensorflow'
+        });
+      });
+    }
+    
+    // Add schedule optimization recommendations
+    const scheduleRecs = this.generateScheduleRecommendations(sessions, userProfile);
+    recommendations.push(...scheduleRecs);
+    
+    // Add progression recommendations
+    const progressionRecs = this.generateProgressionRecommendations(sessions, userProfile);
+    recommendations.push(...progressionRecs);
+    
+    return {
+      recommendations: recommendations.slice(0, 8), // Limit to top 8
+      totalRecommendations: recommendations.length,
+      confidence: 0.88,
+      source: 'tensorflow_enhanced',
+      generatedAt: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.warn('TensorFlow session recommendations failed:', error);
+    throw error;
+  }
+}
+
+// HuggingFace-based recommendations
+async getSessionRecommendationsWithHuggingFace(sessions, userProfile) {
+  try {
+    console.log('AIService: Using HuggingFace for session recommendations');
+    
+    const prompt = this.createSessionRecommendationPrompt(sessions, userProfile);
+    
+    const response = await this.queueRequest({
+      model: this.models.textGeneration,
+      inputs: prompt,
+      parameters: {
+        max_length: 300,
+        temperature: 0.7,
+        do_sample: true,
+        top_p: 0.9
+      }
+    });
+    
+    const recommendations = this.parseRecommendationResponse(response.generated_text);
+    
+    return {
+      recommendations: recommendations.slice(0, 6),
+      totalRecommendations: recommendations.length,
+      confidence: this.calculateConfidence(response.generated_text),
+      source: 'huggingface',
+      generatedAt: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.warn('HuggingFace session recommendations failed:', error);
+    throw error;
+  }
+}
+
+// Fallback recommendations
+async getSessionRecommendationsWithFallback(sessions, userProfile) {
+  console.log('AIService: Using intelligent fallback for session recommendations');
   
+  const recommendations = [];
+  
+  // Analyze current sessions
+  const analysis = this.analyzeSessionPatterns(sessions);
+  
+  // Generate recommendations based on patterns
+  if (analysis.weeklyFrequency < 2) {
+    recommendations.push({
+      id: 'freq_low',
+      type: 'frequency',
+      priority: 'high',
+      title: 'Increase Training Frequency',
+      description: 'Consider adding 1-2 more sessions per week for better skill development and fitness gains.',
+      category: 'schedule',
+      confidence: 0.9,
+      source: 'pattern_analysis'
+    });
+  }
+  
+  if (analysis.averageDuration < 60) {
+    recommendations.push({
+      id: 'duration_short',
+      type: 'duration',
+      priority: 'medium',
+      title: 'Extend Session Duration',
+      description: 'Sessions under 60 minutes may not allow sufficient time for proper warm-up, skill work, and cool-down.',
+      category: 'session_structure',
+      confidence: 0.85,
+      source: 'duration_analysis'
+    });
+  }
+  
+  if (analysis.sportVariety < 2) {
+    recommendations.push({
+      id: 'cross_training',
+      type: 'variety',
+      priority: 'medium',
+      title: 'Add Cross-Training Activities',
+      description: 'Incorporate complementary activities to improve overall athleticism and prevent overuse injuries.',
+      category: 'training_variety',
+      confidence: 0.75,
+      source: 'variety_analysis'
+    });
+  }
+  
+  // Age-specific recommendations
+  if (userProfile.ageGroup) {
+    const ageRecs = this.getAgeSpecificRecommendations(userProfile.ageGroup, analysis);
+    recommendations.push(...ageRecs);
+  }
+  
+  // Sport-specific recommendations
+  if (userProfile.sport) {
+    const sportRecs = this.getSportSpecificRecommendations(userProfile.sport, analysis);
+    recommendations.push(...sportRecs);
+  }
+  
+  // Experience-level recommendations
+  if (userProfile.experience) {
+    const expRecs = this.getExperienceLevelRecommendations(userProfile.experience, analysis);
+    recommendations.push(...expRecs);
+  }
+  
+  return {
+    recommendations: recommendations.slice(0, 8),
+    totalRecommendations: recommendations.length,
+    confidence: 0.80,
+    source: 'intelligent_fallback',
+    generatedAt: new Date().toISOString(),
+    analysisData: analysis
+  };
+}
+
+// Helper methods for session recommendations
+analyzeSessionPatterns(sessions) {
+  if (!sessions || sessions.length === 0) {
+    return {
+      totalSessions: 0,
+      weeklyFrequency: 0,
+      averageDuration: 90,
+      sportVariety: 1,
+      difficultyRange: ['intermediate'],
+      timeDistribution: {},
+      focusAreas: []
+    };
+  }
+  
+  const analysis = {
+    totalSessions: sessions.length,
+    weeklyFrequency: this.calculateWeeklyFrequency(sessions),
+    averageDuration: this.calculateAverageDuration(sessions),
+    sportVariety: this.countSportVariety(sessions),
+    difficultyRange: this.getDifficultyRange(sessions),
+    timeDistribution: this.analyzeTimeDistribution(sessions),
+    focusAreas: this.extractFocusAreas(sessions)
+  };
+  
+  return analysis;
+}
+
+calculateWeeklyFrequency(sessions) {
+  if (sessions.length === 0) return 0;
+  
+  // Group sessions by week
+  const weekGroups = {};
+  sessions.forEach(session => {
+    if (session.date) {
+      const week = this.getWeekKey(session.date);
+      if (!weekGroups[week]) weekGroups[week] = 0;
+      weekGroups[week]++;
+    }
+  });
+  
+  const weeks = Object.keys(weekGroups);
+  return weeks.length > 0 ? 
+    weeks.reduce((sum, week) => sum + weekGroups[week], 0) / weeks.length : 0;
+}
+
+calculateAverageDuration(sessions) {
+  const durations = sessions
+    .filter(session => session.duration && session.duration > 0)
+    .map(session => session.duration);
+  
+  return durations.length > 0 ? 
+    durations.reduce((sum, duration) => sum + duration, 0) / durations.length : 90;
+}
+
+countSportVariety(sessions) {
+  const sports = new Set();
+  sessions.forEach(session => {
+    if (session.sport) sports.add(session.sport.toLowerCase());
+  });
+  return sports.size;
+}
+
+getDifficultyRange(sessions) {
+  const difficulties = new Set();
+  sessions.forEach(session => {
+    if (session.difficulty) difficulties.add(session.difficulty.toLowerCase());
+  });
+  return Array.from(difficulties);
+}
+
+analyzeTimeDistribution(sessions) {
+  const timeSlots = {};
+  sessions.forEach(session => {
+    if (session.time) {
+      const hour = parseInt(session.time.split(':')[0]);
+      const slot = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+      timeSlots[slot] = (timeSlots[slot] || 0) + 1;
+    }
+  });
+  return timeSlots;
+}
+
+extractFocusAreas(sessions) {
+  const focusAreas = new Set();
+  sessions.forEach(session => {
+    if (session.focus && Array.isArray(session.focus)) {
+      session.focus.forEach(focus => focusAreas.add(focus.toLowerCase()));
+    }
+  });
+  return Array.from(focusAreas);
+}
+
+getWeekKey(dateString) {
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const week = Math.floor((date.getTime() - new Date(year, 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000));
+  return `${year}-W${week}`;
+}
+
+// Additional helper methods
+createSessionRecommendationPrompt(sessions, userProfile) {
+  const sessionCount = sessions.length;
+  const sports = [...new Set(sessions.map(s => s.sport).filter(Boolean))];
+  const avgDuration = this.calculateAverageDuration(sessions);
+  
+  return `As a professional sports coach, analyze these training sessions and provide recommendations:
+
+SESSION OVERVIEW:
+- Total Sessions: ${sessionCount}
+- Sports: ${sports.join(', ') || 'General'}
+- Average Duration: ${Math.round(avgDuration)} minutes
+- Athlete Profile: ${userProfile.ageGroup || 'Adult'} ${userProfile.experience || 'Intermediate'}
+
+CURRENT PATTERNS:
+${sessions.slice(0, 3).map(s => `- ${s.title}: ${s.duration}min ${s.sport || 'General'} session`).join('\n')}
+
+Please provide 5-6 specific recommendations to improve:
+1. Training effectiveness
+2. Skill development
+3. Injury prevention
+4. Motivation and engagement
+5. Long-term progress
+
+Format as: TITLE: Description (1-2 sentences each)`;
+}
+
+parseRecommendationResponse(responseText) {
+  const recommendations = [];
+  const lines = responseText.split('\n').filter(line => line.trim());
+  
+  lines.forEach((line, index) => {
+    const titleMatch = line.match(/^[A-Z][A-Z\s]+:/);
+    if (titleMatch) {
+      const title = titleMatch[0].replace(':', '').trim();
+      const description = line.replace(titleMatch[0], '').trim();
+      
+      if (title.length > 3 && description.length > 10) {
+        recommendations.push({
+          id: `ai_rec_${index}`,
+          type: 'ai_generated',
+          priority: 'medium',
+          title: title,
+          description: description,
+          category: this.categorizeRecommendation(title, description),
+          confidence: 0.75,
+          source: 'huggingface'
+        });
+      }
+    }
+  });
+  
+  return recommendations;
+}
+
+categorizeRecommendation(title, description) {
+  const titleLower = title.toLowerCase();
+  const descLower = description.toLowerCase();
+  const combined = titleLower + ' ' + descLower;
+  
+  if (combined.includes('frequency') || combined.includes('schedule')) return 'scheduling';
+  if (combined.includes('duration') || combined.includes('time')) return 'session_structure';
+  if (combined.includes('skill') || combined.includes('technique')) return 'skill_development';
+  if (combined.includes('injury') || combined.includes('safety')) return 'injury_prevention';
+  if (combined.includes('motivation') || combined.includes('engagement')) return 'motivation';
+  if (combined.includes('nutrition') || combined.includes('recovery')) return 'wellness';
+  if (combined.includes('equipment') || combined.includes('gear')) return 'equipment';
+  
+  return 'general';
+}
+
+extractTipTitle(tipText) {
+  if (typeof tipText === 'string') {
+    const sentences = tipText.split('.');
+    const firstSentence = sentences[0].trim();
+    return firstSentence.length > 50 ? 
+      firstSentence.substring(0, 50) + '...' : 
+      firstSentence;
+  }
+  return 'Training Recommendation';
+}
+
+// Specific recommendation generators
+generateScheduleRecommendations(sessions, userProfile) {
+  const recommendations = [];
+  const analysis = this.analyzeSessionPatterns(sessions);
+  
+  if (analysis.weeklyFrequency > 5) {
+    recommendations.push({
+      id: 'schedule_rest',
+      type: 'schedule',
+      priority: 'high',
+      title: 'Add Rest Days',
+      description: 'Training more than 5 days per week increases injury risk. Consider incorporating 1-2 rest days for recovery.',
+      category: 'recovery',
+      confidence: 0.9,
+      source: 'schedule_analysis'
+    });
+  }
+  
+  const timeDistribution = analysis.timeDistribution;
+  const totalSessions = Object.values(timeDistribution).reduce((sum, count) => sum + count, 0);
+  
+  if (timeDistribution.morning && timeDistribution.morning / totalSessions > 0.8) {
+    recommendations.push({
+      id: 'schedule_variety',
+      type: 'schedule',
+      priority: 'low',
+      title: 'Vary Training Times',
+      description: 'Consider occasionally training at different times of day to adapt to various competition schedules.',
+      category: 'adaptation',
+      confidence: 0.6,
+      source: 'time_analysis'
+    });
+  }
+  
+  return recommendations;
+}
+
+generateProgressionRecommendations(sessions, userProfile) {
+  const recommendations = [];
+  
+  if (userProfile.experience === 'beginner' && sessions.length > 10) {
+    recommendations.push({
+      id: 'progression_intermediate',
+      type: 'progression',
+      priority: 'medium',
+      title: 'Ready for Intermediate Level',
+      description: 'Your consistent training shows readiness to progress to intermediate-level exercises and techniques.',
+      category: 'progression',
+      confidence: 0.8,
+      source: 'experience_analysis'
+    });
+  }
+  
+  return recommendations;
+}
+
+getAgeSpecificRecommendations(ageGroup, analysis) {
+  const recommendations = [];
+  
+  if (ageGroup === 'youth' && analysis.averageDuration > 60) {
+    recommendations.push({
+      id: 'age_duration_youth',
+      type: 'age_specific',
+      priority: 'high',
+      title: 'Reduce Session Length for Youth',
+      description: 'Youth athletes (under 12) benefit more from shorter, more frequent sessions to maintain focus and prevent burnout.',
+      category: 'age_appropriate',
+      confidence: 0.9,
+      source: 'age_guidelines'
+    });
+  }
+  
+  if (ageGroup === 'senior' && analysis.focusAreas.includes('high intensity')) {
+    recommendations.push({
+      id: 'age_intensity_senior',
+      type: 'age_specific',
+      priority: 'medium',
+      title: 'Moderate Intensity for Seniors',
+      description: 'Focus on consistency and form over high intensity to maximize benefits while minimizing injury risk.',
+      category: 'age_appropriate',
+      confidence: 0.85,
+      source: 'age_guidelines'
+    });
+  }
+  
+  return recommendations;
+}
+
+getSportSpecificRecommendations(sport, analysis) {
+  const recommendations = [];
+  
+  if (sport === 'soccer' && !analysis.focusAreas.includes('ball control')) {
+    recommendations.push({
+      id: 'sport_soccer_ball_control',
+      type: 'sport_specific',
+      priority: 'medium',
+      title: 'Include Ball Control Practice',
+      description: 'Regular ball control work is fundamental to soccer development and should be included in most sessions.',
+      category: 'skill_development',
+      confidence: 0.85,
+      source: 'sport_requirements'
+    });
+  }
+  
+  if (sport === 'basketball' && analysis.averageDuration < 75) {
+    recommendations.push({
+      id: 'sport_basketball_duration',
+      type: 'sport_specific',
+      priority: 'medium',
+      title: 'Extend Basketball Sessions',
+      description: 'Basketball training benefits from longer sessions (75-90 min) to practice game scenarios and conditioning.',
+      category: 'session_structure',
+      confidence: 0.8,
+      source: 'sport_requirements'
+    });
+  }
+  
+  return recommendations;
+}
+
+getExperienceLevelRecommendations(experience, analysis) {
+  const recommendations = [];
+  
+  if (experience === 'advanced' && analysis.sportVariety < 2) {
+    recommendations.push({
+      id: 'exp_advanced_cross_training',
+      type: 'experience_level',
+      priority: 'low',
+      title: 'Add Cross-Training for Advanced Athletes',
+      description: 'Advanced athletes benefit from cross-training to prevent overuse injuries and develop complementary skills.',
+      category: 'training_variety',
+      confidence: 0.7,
+      source: 'experience_guidelines'
+    });
+  }
+  
+  if (experience === 'beginner' && analysis.weeklyFrequency > 4) {
+    recommendations.push({
+      id: 'exp_beginner_frequency',
+      type: 'experience_level',
+      priority: 'medium',
+      title: 'Reduce Training Frequency for Beginners',
+      description: 'Beginners benefit from 2-3 sessions per week with rest days to allow proper recovery and adaptation.',
+      category: 'scheduling',
+      confidence: 0.85,
+      source: 'experience_guidelines'
+    });
+  }
+  
+  return recommendations;
+}
+      
 
   // NEW: Get primary service based on availability and priority
   getPrimaryService() {

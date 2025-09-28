@@ -32,11 +32,13 @@ import {
 } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSelector, useDispatch } from 'react-redux';
+import { Platform } from 'react-native';
 
 // Services
 import SessionExtractor from '../../../services/SessionExtractor';
 import DocumentProcessor from '../../../services/DocumentProcessor';
-import SessionScheduleScreen from './src/screens/coach/training/SessionScheduleScreen';
+import SessionScheduleScreen from './SessionScheduleScreen';
+import AIService from '../../../services/AIService.js';
 // Design system
 import { COLORS } from '../../../styles/colors';
 import { SPACING } from '../../../styles/spacing';
@@ -44,14 +46,68 @@ import { TEXT_STYLES } from '../../../styles/textStyles';
 import { TYPOGRAPHY } from '../../../styles/typography';
 import { LAYOUT } from '../../../styles/layout';
 
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-  FadeInDown,
-  FadeInRight,
-} from 'react-native-reanimated';
+
+
+// Cross-platform animation handling
+let Animated, FadeInDown, FadeInRight, useSharedValue, useAnimatedStyle;
+
+if (Platform.OS === 'web') {
+  // Use React Native's built-in Animated for web
+  const RNAnimated = require('react-native').Animated;
+  
+  Animated = {
+    View: RNAnimated.View,
+    timing: RNAnimated.timing,
+    parallel: RNAnimated.parallel,
+    Value: RNAnimated.Value,
+  };
+  
+  // Mock reanimated functions for web
+  FadeInDown = {
+    delay: (ms) => ({ delay: ms })
+  };
+  
+  FadeInRight = {
+    delay: (ms) => ({ delay: ms })
+  };
+  
+  useSharedValue = (initialValue) => {
+    const ref = React.useRef(new RNAnimated.Value(initialValue));
+    return ref.current;
+  };
+  
+  useAnimatedStyle = () => ({});
+  
+} else {
+  // Use react-native-reanimated for native platforms
+  try {
+    const ReAnimated = require('react-native-reanimated');
+    Animated = ReAnimated.default;
+    FadeInDown = ReAnimated.FadeInDown;
+    FadeInRight = ReAnimated.FadeInRight;
+    useSharedValue = ReAnimated.useSharedValue;
+    useAnimatedStyle = ReAnimated.useAnimatedStyle;
+  } catch (error) {
+    console.warn('react-native-reanimated not available, falling back to RN Animated');
+    // Fallback to React Native Animated if reanimated fails
+    const RNAnimated = require('react-native').Animated;
+    
+    Animated = {
+      View: RNAnimated.View,
+      timing: RNAnimated.timing,
+      parallel: RNAnimated.parallel,
+      Value: RNAnimated.Value,
+    };
+    
+    FadeInDown = { delay: (ms) => ({ delay: ms }) };
+    FadeInRight = { delay: (ms) => ({ delay: ms }) };
+    useSharedValue = (initialValue) => {
+      const ref = React.useRef(new RNAnimated.Value(initialValue));
+      return ref.current;
+    };
+    useAnimatedStyle = () => ({});
+  }
+}
 
 const { width, height } = Dimensions.get('window');
 
@@ -107,7 +163,7 @@ const SessionScheduler = ({ navigation }) => {
     notes: '',
   });
 
-  const scrollY = useSharedValue(0);
+  const scrollY = Platform.OS === 'web' ? 0 : useSharedValue(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const sessionTypes = [
@@ -647,235 +703,238 @@ const SessionScheduler = ({ navigation }) => {
     },
   };
 
-  const renderHeader = () => (
-    <Animated.View entering={FadeInDown.delay(100)}>
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={{
-          paddingTop: StatusBar.currentHeight + 20,
-          paddingHorizontal: SPACING.lg,
-          paddingBottom: SPACING.lg,
-          borderBottomLeftRadius: 24,
-          borderBottomRightRadius: 24,
-        }}
-      >
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-        
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.md }}>
-          <View>
-            <Text style={[TEXT_STYLES.header, { color: 'white', fontSize: 28 }]}>
-              Training Sessions
-            </Text>
-            <Text style={[TEXT_STYLES.body, { color: 'rgba(255,255,255,0.8)', marginTop: 4 }]}>
-              {allSessions.length} sessions scheduled
-            </Text>
-          </View>
-          <Avatar.Text
-            size={50}
-            label={user?.name?.charAt(0) || 'C'}
-            style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
-            labelStyle={{ color: 'white' }}
-          />
+const renderHeader = () => (
+  <View>
+    <LinearGradient
+      colors={['#667eea', '#764ba2']}
+      style={{
+        paddingTop: StatusBar.currentHeight + 20,
+        paddingHorizontal: SPACING.lg,
+        paddingBottom: SPACING.lg,
+        borderBottomLeftRadius: 24,
+        borderBottomRightRadius: 24,
+      }}
+    >
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.md }}>
+        <View>
+          <Text style={[TEXT_STYLES.header, { color: 'white', fontSize: 28 }]}>
+            Training Sessions
+          </Text>
+          <Text style={[TEXT_STYLES.body, { color: 'rgba(255,255,255,0.8)', marginTop: 4 }]}>
+            {allSessions.length} sessions scheduled
+          </Text>
         </View>
-
-        {/* Quick Stats */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.md }}>
-          <Surface style={styles.statCard}>
-            <Text style={styles.statNumber}>{extractedSessions.length}</Text>
-            <Text style={styles.statLabel}>From Plans</Text>
-          </Surface>
-          <Surface style={styles.statCard}>
-            <Text style={styles.statNumber}>{manualSessions.length}</Text>
-            <Text style={styles.statLabel}>Manual</Text>
-          </Surface>
-          <Surface style={styles.statCard}>
-            <Text style={styles.statNumber}>{trainingPlans.length}</Text>
-            <Text style={styles.statLabel}>Plans</Text>
-          </Surface>
-        </View>
-
-        {/* Search Bar */}
-        <Searchbar
-          placeholder="Search sessions, academies, sports..."
-          onChangeText={setSearchQuery}
-          value={searchQuery}
-          style={{
-            backgroundColor: 'rgba(255,255,255,0.9)',
-            elevation: 0,
-            borderRadius: 12,
-          }}
-          iconColor={COLORS?.primary || COLORS_FALLBACK.primary}
-          inputStyle={{ color: COLORS?.text || COLORS_FALLBACK.text }}
+        <Avatar.Text
+          size={50}
+          label={user?.name?.charAt(0) || 'C'}
+          style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+          labelStyle={{ color: 'white' }}
         />
-      </LinearGradient>
-    </Animated.View>
-  );
+      </View>
 
-  const renderSessionCard = ({ item: session, index }) => {
-    const typeConfig = getSessionTypeConfig(session.type || 'training');
-    const isFromPlan = !session.isManual;
-    
-    return (
-      <Animated.View entering={FadeInRight.delay(index * 50)}>
-        <TouchableOpacity
-          onPress={() => handleSessionPress(session)}
-          activeOpacity={0.7}
-        >
-          <Card style={styles.sessionCard}>
-            {/* Header with gradient */}
-            <LinearGradient
-              colors={[typeConfig.color, `${typeConfig.color}90`]}
-              style={styles.cardHeader}
-            >
-              <View style={styles.sessionHeader}>
-                <View style={styles.sessionInfo}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                    <Text style={[TEXT_STYLES.h4, { color: 'white', flex: 1 }]}>
-                      {session.title}
-                    </Text>
-                    {isFromPlan && (
-                      <Chip
-                        compact
-                        style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
-                        textStyle={{ color: 'white', fontSize: 10 }}
-                      >
-                        {getWeekLabel(session)}
-                      </Chip>
-                    )}
-                  </View>
-                  
-                  {/* Academy and Sport Info */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                    <Icon name="school" size={14} color="rgba(255,255,255,0.8)" />
-                    <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)', marginLeft: 4 }]}>
-                      {session.academyName}
-                    </Text>
-                    {session.sport && (
-                      <>
-                        <Text style={{ color: 'rgba(255,255,255,0.6)', marginHorizontal: 8 }}>•</Text>
-                        <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)' }]}>
-                          {session.sport}
-                        </Text>
-                      </>
-                    )}
-                  </View>
+      {/* Quick Stats */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.md }}>
+        <Surface style={styles.statCard}>
+          <Text style={styles.statNumber}>{extractedSessions.length}</Text>
+          <Text style={styles.statLabel}>From Plans</Text>
+        </Surface>
+        <Surface style={styles.statCard}>
+          <Text style={styles.statNumber}>{manualSessions.length}</Text>
+          <Text style={styles.statLabel}>Manual</Text>
+        </Surface>
+        <Surface style={styles.statCard}>
+          <Text style={styles.statNumber}>{trainingPlans.length}</Text>
+          <Text style={styles.statLabel}>Plans</Text>
+        </Surface>
+      </View>
 
-                  {/* Time and Location */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                    <Icon name="access-time" size={14} color="rgba(255,255,255,0.8)" />
-                    <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)', marginLeft: 4 }]}>
-                      {session.time} • {session.duration}min
-                    </Text>
-                    {session.location && (
-                      <>
-                        <Text style={{ color: 'rgba(255,255,255,0.6)', marginHorizontal: 8 }}>•</Text>
-                        <Icon name="location-on" size={14} color="rgba(255,255,255,0.8)" />
-                        <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)', marginLeft: 2 }]}>
-                          {session.location}
-                        </Text>
-                      </>
-                    )}
-                  </View>
+      {/* Search Bar */}
+      <Searchbar
+        placeholder="Search sessions, academies, sports..."
+        onChangeText={setSearchQuery}
+        value={searchQuery}
+        style={{
+          backgroundColor: 'rgba(255,255,255,0.9)',
+          elevation: 0,
+          borderRadius: 12,
+        }}
+        iconColor={COLORS?.primary || COLORS_FALLBACK.primary}
+        inputStyle={{ color: COLORS?.text || COLORS_FALLBACK.text }}
+      />
+    </LinearGradient>
+  </View>
+);
 
-                  {/* Age Group and Difficulty */}
-                  {(session.ageGroup || session.difficulty) && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                      {session.ageGroup && (
-                        <Chip
-                          compact
-                          style={{ backgroundColor: 'rgba(255,255,255,0.15)', marginRight: 8 }}
-                          textStyle={{ color: 'white', fontSize: 10 }}
-                        >
-                          {session.ageGroup}
-                        </Chip>
-                      )}
-                      {session.difficulty && (
-                        <Chip
-                          compact
-                          style={{ backgroundColor: getDifficultyColor(session.difficulty) + '40' }}
-                          textStyle={{ color: 'white', fontSize: 10 }}
-                        >
-                          {session.difficulty}
-                        </Chip>
-                      )}
-                    </View>
-                  )}
-                </View>
-              </View>
-            </LinearGradient>
-
-            {/* Body */}
-            <Card.Content style={styles.cardContent}>
-              {/* Participants */}
-              <View style={styles.participantsSection}>
-                <Icon name="group" size={16} color={COLORS?.textSecondary || COLORS_FALLBACK.textSecondary} />
-                <Text style={[TEXT_STYLES.caption, { marginLeft: 4, color: COLORS?.textSecondary || COLORS_FALLBACK.textSecondary }]}>
-                  {session.participants || 0} participants
-                </Text>
-                {session.status && (
-                  <>
-                    <Text style={{ color: COLORS?.textSecondary || COLORS_FALLBACK.textSecondary, marginHorizontal: 8 }}>•</Text>
+const renderSessionCard = ({ item: session, index }) => {
+  const typeConfig = getSessionTypeConfig(session.type || 'training');
+  const isFromPlan = !session.isManual;
+  
+  const CardWrapper = Platform.OS === 'web' ? View : Animated.View;
+  const cardProps = Platform.OS === 'web' ? {} : { entering: FadeInRight.delay(index * 50) };
+  
+  return (
+    <CardWrapper {...cardProps}>
+      <TouchableOpacity
+        onPress={() => handleSessionPress(session)}
+        activeOpacity={0.7}
+      >
+        <Card style={styles.sessionCard}>
+          {/* Header with gradient */}
+          <LinearGradient
+            colors={[typeConfig.color, `${typeConfig.color}90`]}
+            style={styles.cardHeader}
+          >
+            <View style={styles.sessionHeader}>
+              <View style={styles.sessionInfo}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={[TEXT_STYLES.h4, { color: 'white', flex: 1 }]}>
+                    {session.title}
+                  </Text>
+                  {isFromPlan && (
                     <Chip
                       compact
-                      mode="outlined"
-                      style={{ height: 20 }}
-                      textStyle={{ fontSize: 10 }}
+                      style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                      textStyle={{ color: 'white', fontSize: 10 }}
                     >
-                      {session.status.replace('_', ' ').toUpperCase()}
+                      {getWeekLabel(session)}
                     </Chip>
-                  </>
+                  )}
+                </View>
+                
+                {/* Academy and Sport Info */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <Icon name="school" size={14} color="rgba(255,255,255,0.8)" />
+                  <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)', marginLeft: 4 }]}>
+                    {session.academyName}
+                  </Text>
+                  {session.sport && (
+                    <>
+                      <Text style={{ color: 'rgba(255,255,255,0.6)', marginHorizontal: 8 }}>•</Text>
+                      <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)' }]}>
+                        {session.sport}
+                      </Text>
+                    </>
+                  )}
+                </View>
+
+                {/* Time and Location */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <Icon name="access-time" size={14} color="rgba(255,255,255,0.8)" />
+                  <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)', marginLeft: 4 }]}>
+                    {session.time} • {session.duration}min
+                  </Text>
+                  {session.location && (
+                    <>
+                      <Text style={{ color: 'rgba(255,255,255,0.6)', marginHorizontal: 8 }}>•</Text>
+                      <Icon name="location-on" size={14} color="rgba(255,255,255,0.8)" />
+                      <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)', marginLeft: 2 }]}>
+                        {session.location}
+                      </Text>
+                    </>
+                  )}
+                </View>
+
+                {/* Age Group and Difficulty */}
+                {(session.ageGroup || session.difficulty) && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    {session.ageGroup && (
+                      <Chip
+                        compact
+                        style={{ backgroundColor: 'rgba(255,255,255,0.15)', marginRight: 8 }}
+                        textStyle={{ color: 'white', fontSize: 10 }}
+                      >
+                        {session.ageGroup}
+                      </Chip>
+                    )}
+                    {session.difficulty && (
+                      <Chip
+                        compact
+                        style={{ backgroundColor: getDifficultyColor(session.difficulty) + '40' }}
+                        textStyle={{ color: 'white', fontSize: 10 }}
+                      >
+                        {session.difficulty}
+                      </Chip>
+                    )}
+                  </View>
                 )}
               </View>
+            </View>
+          </LinearGradient>
 
-              {/* Focus Areas */}
-              {session.focus && session.focus.length > 0 && (
-                <View style={{ marginTop: SPACING.sm }}>
-                  <Text style={[TEXT_STYLES.caption, { color: COLORS?.textSecondary || COLORS_FALLBACK.textSecondary, marginBottom: 4 }]}>
-                    Focus Areas:
-                  </Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                    {session.focus.slice(0, 3).map((focus, idx) => (
-                      <Chip
-                        key={idx}
-                        compact
-                        mode="outlined"
-                        style={{ marginRight: 4, marginBottom: 4, height: 24 }}
-                        textStyle={{ fontSize: 10 }}
-                      >
-                        {focus}
-                      </Chip>
-                    ))}
-                  </View>
-                </View>
+          {/* Body */}
+          <Card.Content style={styles.cardContent}>
+            {/* Participants */}
+            <View style={styles.participantsSection}>
+              <Icon name="group" size={16} color={COLORS?.textSecondary || COLORS_FALLBACK.textSecondary} />
+              <Text style={[TEXT_STYLES.caption, { marginLeft: 4, color: COLORS?.textSecondary || COLORS_FALLBACK.textSecondary }]}>
+                {session.participants || 0} participants
+              </Text>
+              {session.status && (
+                <>
+                  <Text style={{ color: COLORS?.textSecondary || COLORS_FALLBACK.textSecondary, marginHorizontal: 8 }}>•</Text>
+                  <Chip
+                    compact
+                    mode="outlined"
+                    style={{ height: 20 }}
+                    textStyle={{ fontSize: 10 }}
+                  >
+                    {session.status.replace('_', ' ').toUpperCase()}
+                  </Chip>
+                </>
               )}
+            </View>
 
-              {/* Actions */}
-              <View style={styles.cardActions}>
-                <Button
-                  mode="outlined"
-                  compact
-                  onPress={() => handleEditSession(session)}
-                  style={{ marginRight: SPACING.sm }}
-                  contentStyle={{ height: 32 }}
-                >
-                  {isFromPlan ? 'View Plan' : 'Edit'}
-                </Button>
-                <Button
-                  mode="contained"
-                  compact
-                  onPress={() => handleStartSession(session)}
-                  style={{ backgroundColor: COLORS?.success || COLORS_FALLBACK.success }}
-                  contentStyle={{ height: 32 }}
-                >
-                  Start Session
-                </Button>
+            {/* Focus Areas */}
+            {session.focus && session.focus.length > 0 && (
+              <View style={{ marginTop: SPACING.sm }}>
+                <Text style={[TEXT_STYLES.caption, { color: COLORS?.textSecondary || COLORS_FALLBACK.textSecondary, marginBottom: 4 }]}>
+                  Focus Areas:
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {session.focus.slice(0, 3).map((focus, idx) => (
+                    <Chip
+                      key={idx}
+                      compact
+                      mode="outlined"
+                      style={{ marginRight: 4, marginBottom: 4, height: 24 }}
+                      textStyle={{ fontSize: 10 }}
+                    >
+                      {focus}
+                    </Chip>
+                  ))}
+                </View>
               </View>
-            </Card.Content>
-          </Card>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
+            )}
+
+            {/* Actions */}
+            <View style={styles.cardActions}>
+              <Button
+                mode="outlined"
+                compact
+                onPress={() => handleEditSession(session)}
+                style={{ marginRight: SPACING.sm }}
+                contentStyle={{ height: 32 }}
+              >
+                {isFromPlan ? 'View Plan' : 'Edit'}
+              </Button>
+              <Button
+                mode="contained"
+                compact
+                onPress={() => handleStartSession(session)}
+                style={{ backgroundColor: COLORS?.success || COLORS_FALLBACK.success }}
+                contentStyle={{ height: 32 }}
+              >
+                Start Session
+              </Button>
+            </View>
+          </Card.Content>
+        </Card>
+      </TouchableOpacity>
+    </CardWrapper>
+  );
+};
 
   const renderDateSections = () => {
     const sections = Object.entries(groupedSessions).map(([date, sessions]) => ({

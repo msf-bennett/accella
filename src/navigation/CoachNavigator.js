@@ -728,6 +728,13 @@ const DashboardStack = () => (
       options={{ title: 'Live Session Tracking' }} 
     />
 
+    {/* ADD THE MISSING SESSIONSCHEDULER SCREEN */}
+    <Stack.Screen 
+      name="SessionScheduler" 
+      component={SessionScheduler}
+      options={{ title: 'Session Scheduler' }} 
+    />
+
     {/* Player Management */}
     <Stack.Screen 
       name="PlayerList" 

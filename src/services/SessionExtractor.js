@@ -195,7 +195,7 @@ splitTextByWeeks(text, weekStructure) {
     weekSections.push({
       weekNumber: weekTitles[i].number,
       title: weekTitles[i].title,
-      content: text.substring(startPos, endPos),
+      content: text.substring(startPos, endPos), // This should always be a string
       startPosition: startPos,
       endPosition: endPos
     });
@@ -586,12 +586,31 @@ extractWeekTitle(content, weekNumber) {
 }
 
 extractWeekDescription(content) {
-  const lines = content.split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 20 && !this.isHeaderLine(line));
+  // Handle different input types
+  let processableContent;
+  
+  if (Array.isArray(content)) {
+    processableContent = content;
+  } else if (typeof content === 'string') {
+    processableContent = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+  } else if (content && typeof content === 'object' && content.content) {
+    // Handle weekSection objects
+    processableContent = typeof content.content === 'string' 
+      ? content.content.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+      : content.content;
+  } else {
+    console.warn('extractWeekDescription: unexpected content type:', typeof content);
+    return 'Training week focused on skill development and physical conditioning.';
+  }
+  
+  // Filter out header lines and get meaningful content
+  const meaningfulLines = processableContent.filter(line => {
+    if (typeof line !== 'string') return false;
+    return line.length > 20 && !this.isHeaderLine(line);
+  });
   
   // Take first 2-3 meaningful lines as description
-  const descriptionLines = lines.slice(0, 3);
+  const descriptionLines = meaningfulLines.slice(0, 3);
   const description = descriptionLines.join(' ').substring(0, 200);
   
   return description || 'Training week focused on skill development and physical conditioning.';
@@ -604,9 +623,18 @@ extractWeekFocus(content) {
     'coordination', 'agility', 'strength', 'endurance', 'flexibility'
   ];
   
-  const lowerContent = content.toLowerCase();
+  let textContent;
+  if (Array.isArray(content)) {
+    textContent = content.join(' ').toLowerCase();
+  } else if (typeof content === 'string') {
+    textContent = content.toLowerCase();
+  } else {
+    console.warn('extractWeekFocus: unexpected content type:', typeof content);
+    return ['general training'];
+  }
+  
   const foundFocus = focusKeywords.filter(keyword => 
-    lowerContent.includes(keyword)
+    textContent.includes(keyword)
   );
   
   return foundFocus.slice(0, 3);
@@ -1306,7 +1334,19 @@ extractWeekScheduleInfo(content) {
   const scheduleInfo = [];
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
   
-  content.forEach(line => {
+  let lines;
+  if (Array.isArray(content)) {
+    lines = content;
+  } else if (typeof content === 'string') {
+    lines = content.split('\n');
+  } else {
+    console.warn('extractWeekScheduleInfo: unexpected content type:', typeof content);
+    return [];
+  }
+  
+  lines.forEach(line => {
+    if (typeof line !== 'string') return;
+    
     days.forEach(day => {
       if (line.toLowerCase().includes(day)) {
         const timeMatch = line.match(/(\d{1,2}):(\d{2})|(\d{1,2})\s*(am|pm)/i);
@@ -1399,84 +1439,99 @@ isHeaderLine(line) {
     return 90;
   }
 
-  extractActivities(content) {
-    const activities = [];
-    
-    content.forEach(line => {
-      if (this.isActivity(line)) {
-        activities.push(line.trim());
-      }
-    });
-    
-    return activities.slice(0, 5); // Limit to top 5 activities
+extractActivities(content) {
+  const activities = [];
+  let lines;
+  
+  if (Array.isArray(content)) {
+    lines = content;
+  } else if (typeof content === 'string') {
+    lines = content.split('\n');
+  } else {
+    console.warn('extractActivities: unexpected content type:', typeof content);
+    return ['General training activities'];
   }
+  
+  lines.forEach(line => {
+    if (typeof line === 'string' && this.isActivity(line)) {
+      activities.push(line.trim());
+    }
+  });
+  
+  return activities.slice(0, 5);
+}
 
-  extractDrills(content) {
-    const drills = [];
-    
-    content.forEach(line => {
-      if (this.isDrill(line)) {
-        const drill = {
-          name: this.extractDrillName(line),
-          description: line.trim(),
-          duration: this.extractDrillDuration(line)
-        };
-        drills.push(drill);
-      }
-    });
-    
-    return drills;
+extractDrills(content) {
+  const drills = [];
+  let lines;
+  
+  if (Array.isArray(content)) {
+    lines = content;
+  } else if (typeof content === 'string') {
+    lines = content.split('\n');
+  } else {
+    console.warn('extractDrills: unexpected content type:', typeof content);
+    return [{ name: 'Basic drills', description: 'Fundamental skill development' }];
   }
+  
+  lines.forEach(line => {
+    if (typeof line === 'string' && this.isDrill(line)) {
+      const drill = {
+        name: this.extractDrillName(line),
+        description: line.trim(),
+        duration: this.extractDrillDuration(line)
+      };
+      drills.push(drill);
+    }
+  });
+  
+  return drills.length > 0 ? drills : [{ name: 'Basic drills', description: 'Fundamental skill development' }];
+}
 
-  extractObjectives(content) {
-    const objectives = [];
-    
-    content.forEach(line => {
-      if (this.isObjective(line)) {
-        objectives.push(line.trim());
-      }
-    });
-    
-    return objectives.slice(0, 3);
+extractObjectives(content) {
+  const objectives = [];
+  let lines;
+  
+  if (Array.isArray(content)) {
+    lines = content;
+  } else if (typeof content === 'string') {
+    lines = content.split('\n');
+  } else {
+    console.warn('extractObjectives: unexpected content type:', typeof content);
+    return ['Training objectives'];
   }
+  
+  lines.forEach(line => {
+    if (typeof line === 'string' && this.isObjective(line)) {
+      objectives.push(line.trim());
+    }
+  });
+  
+  return objectives.length > 0 ? objectives.slice(0, 3) : ['Training objectives'];
+}
 
-  extractEquipment(content) {
-    const equipment = [];
-    const equipmentKeywords = ['cones', 'balls', 'goals', 'bibs', 'ladders', 'hurdles', 'markers'];
-    
-    const text = content.join(' ').toLowerCase();
-    equipmentKeywords.forEach(item => {
-      if (text.includes(item)) {
-        equipment.push(item);
-      }
-    });
-    
-    return equipment;
+extractEquipment(content) {
+  const equipment = [];
+  const equipmentKeywords = ['cones', 'balls', 'goals', 'bibs', 'ladders', 'hurdles', 'markers'];
+  
+  let text;
+  if (Array.isArray(content)) {
+    text = content.join(' ').toLowerCase();
+  } else if (typeof content === 'string') {
+    text = content.toLowerCase();
+  } else {
+    console.warn('extractEquipment: unexpected content type:', typeof content);
+    return ['basic training equipment'];
   }
-
-  extractWeekDescription(content) {
-    const meaningfulLines = content.filter(line => 
-      line.length > 20 && 
-      !this.sessionPatterns.weekPattern.test(line) &&
-      !this.isActivity(line)
-    );
-    
-    return meaningfulLines.slice(0, 2).join(' ').substring(0, 200) + '...';
-  }
-
-  extractWeekFocus(content) {
-    const focus = [];
-    const focusKeywords = ['shooting', 'passing', 'dribbling', 'defending', 'tactics', 'fitness'];
-    
-    const text = content.join(' ').toLowerCase();
-    focusKeywords.forEach(keyword => {
-      if (text.includes(keyword)) {
-        focus.push(keyword);
-      }
-    });
-    
-    return focus.slice(0, 3);
-  }
+  
+  equipmentKeywords.forEach(item => {
+    if (text.includes(item)) {
+      equipment.push(item);
+    }
+  });
+  
+  return equipment.length > 0 ? equipment : ['basic training equipment'];
+}
 
   extractSessionFocus(content) {
     return this.extractWeekFocus(content);
