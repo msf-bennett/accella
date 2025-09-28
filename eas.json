@@ -1,0 +1,52 @@
+{
+  "cli": {
+    "version": ">= 16.19.3",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      },
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "431588233052-cm1g5a31dmr1n0i5sltfn4ad07s84l42.apps.googleusercontent.com"
+      },
+      "channel": "development"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "431588233052-cm1g5a31dmr1n0i5sltfn4ad07s84l42.apps.googleusercontent.com"
+      },
+      "channel": "preview"
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "431588233052-cm1g5a31dmr1n0i5sltfn4ad07s84l42.apps.googleusercontent.com"
+      },
+      "channel": "production"
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

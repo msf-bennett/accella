@@ -1,0 +1,98 @@
+{
+  "project_info": {
+    "project_number": "497434151930",
+    "project_id": "athletiq-37e35",
+    "storage_bucket": "athletiq-37e35.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:497434151930:android:1536f8f8e2318490f6f243",
+        "android_client_info": {
+          "package_name": "com.acceilla.acceilla"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "497434151930-is3vh5i1tjq008nv8k1dhr3jk59ggmd4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.acceilla.acceilla",
+            "certificate_hash": "d6ef7b444fd56ea961e9dbea817e8c0e3669b360"
+          }
+        },
+        {
+          "client_id": "497434151930-oq6o04sgmms52002jj4junb902ov29eo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFv62-gPj7PbsQ2yvTaRVNdx9pjw5HxAg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "497434151930-oq6o04sgmms52002jj4junb902ov29eo.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "497434151930-f5r2lef6pvlh5ptjlo08if5cb1adceop.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.athletr.athletr"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:497434151930:android:b3084b7d9d3df3ccf6f243",
+        "android_client_info": {
+          "package_name": "com.athletr.athletr"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "497434151930-3vme1r2sicp5vhve5450nke3evaiq2nf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.athletr.athletr",
+            "certificate_hash": "6ab82db5ba1ea022e2c0a3e9c9a1956bc163b6b9"
+          }
+        },
+        {
+          "client_id": "497434151930-oq6o04sgmms52002jj4junb902ov29eo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFv62-gPj7PbsQ2yvTaRVNdx9pjw5HxAg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "497434151930-oq6o04sgmms52002jj4junb902ov29eo.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "497434151930-f5r2lef6pvlh5ptjlo08if5cb1adceop.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.athletr.athletr"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
