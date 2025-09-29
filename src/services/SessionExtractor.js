@@ -384,16 +384,13 @@ async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
   const sessions = [];
   const { weekStructure, dayStructure } = structureAnalysis;
   
-  console.log('SessionExtractor: Extracting with weekly+daily structure');
-  
-  // For each detected week
   weekStructure.detectedWeeks.forEach(weekNum => {
     const weekContent = this.extractWeekContent(text, weekNum, weekStructure.weekMarkers);
     
     const weekSession = {
       id: `week_${weekNum}_${Date.now()}`,
       weekNumber: weekNum,
-      title: `Week ${weekNum} Training`,
+      title: this.extractWeekTitle(weekContent, weekNum), // This now returns proper format
       description: this.extractWeekDescription(weekContent),
       dailySessions: [],
       totalDuration: 0,
@@ -1345,27 +1342,45 @@ mapSessionToDay(dayNumber) {
 }
 
 // Add these missing methods to SessionExtractor.js
-
 extractWeekTitle(content, weekNumber) {
-  const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+  const lines = typeof content === 'string' 
+    ? content.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+    : (Array.isArray(content) ? content : []);
   
-  // Look for the week header line
-  for (const line of lines.slice(0, 5)) { // Check first 5 lines
-    if (line.toLowerCase().includes(`week ${weekNumber}`) || 
-        line.toLowerCase().includes(`week${weekNumber}`)) {
-      // Clean up the title
-      return line
-        .replace(/^week\s*\d+[:\-–—]?\s*/i, '')
-        .replace(/[:\-–—]/g, '')
-        .trim() || `Week ${weekNumber} Training`;
+  // Look for the FULL week header line in first 5 lines
+  for (const line of lines.slice(0, 5)) {
+    // Match: "Week N: [Description]" or "Week N - [Description]"
+    const fullTitleMatch = line.match(/^week\s*\d+\s*[:\-–—]\s*(.+?)$/i);
+    if (fullTitleMatch) {
+      const focusText = fullTitleMatch[1].trim();
+      
+      // Skip scheduling lines
+      if (this.isSchedulingLine(focusText)) continue;
+      
+      // Return in format: "Focus - [description]"
+      return `Focus - ${focusText}`;
     }
+  }
+  
+  // Fallback: try to extract focus from content
+  const focus = this.extractWeekFocus(lines);
+  if (focus && focus.length > 0) {
+    return `Focus - ${focus.join(', ')}`;
   }
   
   return `Week ${weekNumber} Training`;
 }
 
+isSchedulingLine(line) {
+  const schedulingPatterns = [
+    /\(.*hours?\s*each\)/i,
+    /(sunday|monday|tuesday|wednesday|thursday|friday|saturday).*\d+\s*hours?/i,
+    /^\d+\s*hours?\s*each$/i
+  ];
+  return schedulingPatterns.some(pattern => pattern.test(line));
+}
+
 extractWeekDescription(content) {
-  // Handle different input types
   let processableContent;
   
   if (Array.isArray(content)) {
@@ -1373,7 +1388,6 @@ extractWeekDescription(content) {
   } else if (typeof content === 'string') {
     processableContent = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   } else if (content && typeof content === 'object' && content.content) {
-    // Handle weekSection objects
     processableContent = typeof content.content === 'string' 
       ? content.content.split('\n').map(line => line.trim()).filter(line => line.length > 0)
       : content.content;
@@ -1382,13 +1396,33 @@ extractWeekDescription(content) {
     return 'Training week focused on skill development and physical conditioning.';
   }
   
-  // Filter out header lines and get meaningful content
+  // Skip header and scheduling lines, get to actual training content
   const meaningfulLines = processableContent.filter(line => {
     if (typeof line !== 'string') return false;
-    return line.length > 20 && !this.isHeaderLine(line);
+    if (line.length < 15) return false;
+    if (this.isHeaderLine(line)) return false;
+    if (this.isSchedulingLine(line)) return false; // NEW: Skip scheduling lines
+    return true;
   });
   
-  // Take first 2-3 meaningful lines as description
+  // Look for activity sections (Warm-up, Technical Drill, etc.)
+  const activitySections = [];
+  for (const line of meaningfulLines.slice(0, 15)) {
+    if (line.match(/^(warm[- ]?up|technical|conditioning|special|gameplay|cool[- ]?down)/i)) {
+      activitySections.push(line);
+      if (activitySections.length >= 3) break; // Get first 3 activity types
+    }
+  }
+  
+  // If we found activity sections, use those for description
+  if (activitySections.length > 0) {
+    const description = activitySections
+      .map(s => s.replace(/\(\d+\s*minutes?\)/i, '').trim())
+      .join(', ');
+    return description.substring(0, 200);
+  }
+  
+  // Otherwise take first meaningful lines
   const descriptionLines = meaningfulLines.slice(0, 3);
   const description = descriptionLines.join(' ').substring(0, 200);
   
@@ -1396,27 +1430,44 @@ extractWeekDescription(content) {
 }
 
 extractWeekFocus(content) {
-  const focusKeywords = [
-    'shooting', 'passing', 'dribbling', 'defending', 'tactics', 
-    'fitness', 'conditioning', 'technique', 'teamwork', 'strategy',
-    'coordination', 'agility', 'strength', 'endurance', 'flexibility'
-  ];
-  
   let textContent;
   if (Array.isArray(content)) {
     textContent = content.join(' ').toLowerCase();
   } else if (typeof content === 'string') {
     textContent = content.toLowerCase();
   } else {
-    console.warn('extractWeekFocus: unexpected content type:', typeof content);
     return ['general training'];
   }
+  
+  // PRIORITY 1: Extract from week title if present
+  const titleMatch = textContent.match(/week\s*\d+[:\-–—]\s*(.+?)(?:\n|sunday|monday|tuesday|wednesday)/i);
+  if (titleMatch && titleMatch[1]) {
+    const titleFocus = titleMatch[1].toLowerCase();
+    
+    // Clean up the focus text
+    const focusText = titleFocus
+      .replace(/\(\d+\s*hours?\s*each\)/gi, '')
+      .replace(/sunday|monday|tuesday|wednesday|thursday|friday|saturday/gi, '')
+      .trim();
+    
+    if (focusText.length > 10 && focusText.length < 150) {
+      return [focusText];
+    }
+  }
+  
+  // PRIORITY 2: Search for focus keywords
+  const focusKeywords = [
+    'body positioning', 'arm recovery', 'arm entry', 'underwater catch',
+    'kick', 'head positioning', 'breathing', 'stroke timing',
+    'shooting', 'passing', 'dribbling', 'defending', 'tactics',
+    'fitness', 'conditioning', 'technique', 'teamwork', 'strategy'
+  ];
   
   const foundFocus = focusKeywords.filter(keyword => 
     textContent.includes(keyword)
   );
   
-  return foundFocus.slice(0, 3);
+  return foundFocus.length > 0 ? foundFocus.slice(0, 3) : ['general training'];
 }
 
 extractWeekScheduleFromStructure(content, dayStructure) {
@@ -1458,10 +1509,10 @@ extractFromBasicStructuredDocument(text, structureAnalysis, academyInfo) {
   
   for (let weekNum = 1; weekNum <= totalWeeks; weekNum++) {
     const weekSession = {
-      id: `week_${weekNum}_basic_${Date.now()}`,
-      weekNumber: weekNum,
-      title: `Week ${weekNum} Training`,
-      description: `Training focus for week ${weekNum}`,
+  id: `week_${weekNumber}_${Date.now()}`,
+      weekNumber: weekNumber,
+      title: this.extractWeekTitle(weekContent, weekNumber), // This should now get the proper title
+      description: this.extractWeekDescription(weekContent),
       dailySessions: [],
       totalDuration: 0,
       focus: this.generateDefaultFocus(weekNum, academyInfo.sport),

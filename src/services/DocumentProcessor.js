@@ -1653,7 +1653,9 @@ async parseTrainingPlanContent(text, document, options = {}) {
         documentOriginalName: document.originalName,
         documentType: document.type,
         extractedTitle: extractedTitle,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        preserveWeekTitles: true, // NEW FLAG
+        rawContent: text.substring(0, 10000),
       }
     };
 
