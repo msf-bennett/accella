@@ -440,6 +440,252 @@ async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
   return sessions;
 }
 
+async extractWeeklyOnlyStructure(text, structureAnalysis, academyInfo) {
+  const sessions = [];
+  const { weekStructure } = structureAnalysis;
+  
+  weekStructure.detectedWeeks.forEach(weekNum => {
+    const weekContent = this.extractWeekContent(text, weekNum, weekStructure.weekMarkers);
+    
+    const weekSession = {
+      id: `week_${weekNum}_${Date.now()}`,
+      weekNumber: weekNum,
+      title: this.extractWeekTitle(weekContent, weekNum),
+      description: this.extractWeekDescription(weekContent),
+      
+      rawContent: weekContent,
+      documentContent: weekContent,
+      
+      dailySessions: [],
+      totalDuration: 0,
+      focus: this.extractWeekFocus(weekContent),
+      academyName: academyInfo.academyName,
+      sport: academyInfo.sport
+    };
+    
+    // Create a general week overview session
+    const overviewSession = {
+      id: `session_${weekNum}_overview_${Date.now()}`,
+      weekNumber: weekNum,
+      dayNumber: 1,
+      day: 'week_overview',
+      title: `Week ${weekNum} Training Overview`,
+      date: this.calculateSessionDate(weekNum, 'monday'),
+      time: '08:00',
+      duration: this.extractDurationFromContext(weekContent) || 120,
+      location: academyInfo.location || 'Training Field',
+      type: 'Weekly Overview',
+      participants: this.estimateParticipants(academyInfo.ageGroup),
+      status: 'scheduled',
+      academyName: academyInfo.academyName,
+      sport: academyInfo.sport,
+      ageGroup: academyInfo.ageGroup,
+      
+      rawContent: weekContent,
+      documentContent: weekContent,
+      
+      activities: this.extractActivitiesFromContext(weekContent),
+      focus: this.extractWeekFocus(weekContent)
+    };
+    
+    weekSession.dailySessions.push(overviewSession);
+    weekSession.totalDuration = overviewSession.duration;
+    
+    sessions.push(weekSession);
+  });
+  
+  return sessions;
+}
+
+async extractDailyOnlyStructure(text, structureAnalysis, academyInfo) {
+  const sessions = [];
+  const { dayStructure } = structureAnalysis;
+  
+  // Group days into logical weeks (assume 1 week per unique set of days)
+  const daysPerWeek = dayStructure.detectedDays.length;
+  const weekCount = Math.ceil(daysPerWeek / 5); // Assume max 5 training days per week
+  
+  for (let weekNum = 1; weekNum <= weekCount; weekNum++) {
+    const weekSession = {
+      id: `week_${weekNum}_${Date.now()}`,
+      weekNumber: weekNum,
+      title: `Week ${weekNum} Training`,
+      description: `Daily training sessions for week ${weekNum}`,
+      dailySessions: [],
+      totalDuration: 0,
+      focus: ['daily training'],
+      academyName: academyInfo.academyName,
+      sport: academyInfo.sport
+    };
+    
+    // Extract days for this week
+    const startIdx = (weekNum - 1) * 5;
+    const endIdx = Math.min(startIdx + 5, dayStructure.detectedDays.length);
+    const weekDays = dayStructure.detectedDays.slice(startIdx, endIdx);
+    
+    weekDays.forEach((day, dayIndex) => {
+      const dayContent = this.extractDayContentFromText(text, day);
+      
+      const dailySession = {
+        id: `session_${weekNum}_${dayIndex}_${Date.now()}`,
+        weekNumber: weekNum,
+        dayNumber: dayIndex + 1,
+        day: day,
+        title: `${this.capitalizeFirst(day)} Training`,
+        date: this.calculateSessionDate(weekNum, day),
+        time: '08:00',
+        duration: 90,
+        location: academyInfo.location || 'Training Field',
+        type: 'Daily Training',
+        participants: this.estimateParticipants(academyInfo.ageGroup),
+        status: 'scheduled',
+        academyName: academyInfo.academyName,
+        sport: academyInfo.sport,
+        ageGroup: academyInfo.ageGroup,
+        
+        rawContent: dayContent,
+        documentContent: dayContent,
+        
+        activities: this.extractActivitiesFromContext(dayContent),
+        focus: [day + ' focus']
+      };
+      
+      weekSession.dailySessions.push(dailySession);
+      weekSession.totalDuration += dailySession.duration;
+    });
+    
+    sessions.push(weekSession);
+  }
+  
+  return sessions;
+}
+
+async extractSessionBasedStructure(text, structureAnalysis, academyInfo) {
+  const sessions = [];
+  const { sessionStructure } = structureAnalysis;
+  
+  // Group sessions into weeks (3 sessions per week)
+  const sessionsPerWeek = 3;
+  const weekCount = Math.ceil(sessionStructure.sessionMarkers.length / sessionsPerWeek);
+  
+  for (let weekNum = 1; weekNum <= weekCount; weekNum++) {
+    const weekSession = {
+      id: `week_${weekNum}_${Date.now()}`,
+      weekNumber: weekNum,
+      title: `Week ${weekNum} Sessions`,
+      description: `Training sessions for week ${weekNum}`,
+      dailySessions: [],
+      totalDuration: 0,
+      focus: ['session training'],
+      academyName: academyInfo.academyName,
+      sport: academyInfo.sport
+    };
+    
+    const startIdx = (weekNum - 1) * sessionsPerWeek;
+    const endIdx = Math.min(startIdx + sessionsPerWeek, sessionStructure.sessionMarkers.length);
+    const weekSessions = sessionStructure.sessionMarkers.slice(startIdx, endIdx);
+    
+    weekSessions.forEach((sessionMarker, idx) => {
+      const sessionContent = this.extractContentAroundMarker(text, sessionMarker);
+      
+      const dailySession = {
+        id: `session_${weekNum}_${idx}_${Date.now()}`,
+        weekNumber: weekNum,
+        dayNumber: idx + 1,
+        day: this.mapSessionToDay(idx + 1),
+        title: sessionMarker.text,
+        date: this.calculateSessionDate(weekNum, this.mapSessionToDay(idx + 1)),
+        time: '08:00',
+        duration: 90,
+        location: academyInfo.location || 'Training Field',
+        type: sessionMarker.type,
+        participants: this.estimateParticipants(academyInfo.ageGroup),
+        status: 'scheduled',
+        academyName: academyInfo.academyName,
+        sport: academyInfo.sport,
+        ageGroup: academyInfo.ageGroup,
+        
+        rawContent: sessionContent,
+        documentContent: sessionContent,
+        
+        activities: this.extractActivitiesFromContext(sessionContent),
+        focus: [sessionMarker.type]
+      };
+      
+      weekSession.dailySessions.push(dailySession);
+      weekSession.totalDuration += dailySession.duration;
+    });
+    
+    sessions.push(weekSession);
+  }
+  
+  return sessions;
+}
+
+async extractUnstructuredContent(text, structureAnalysis, academyInfo) {
+  // For completely unstructured documents, create a basic 4-week structure
+  const sessions = [];
+  
+  for (let weekNum = 1; weekNum <= 4; weekNum++) {
+    const weekSession = {
+      id: `week_${weekNum}_${Date.now()}`,
+      weekNumber: weekNum,
+      title: `Week ${weekNum} Training`,
+      description: `Training content for week ${weekNum}`,
+      dailySessions: [],
+      totalDuration: 270,
+      focus: ['general training'],
+      academyName: academyInfo.academyName,
+      sport: academyInfo.sport
+    };
+    
+    // Create 3 sessions per week
+    ['monday', 'wednesday', 'friday'].forEach((day, idx) => {
+      const dailySession = {
+        id: `session_${weekNum}_${idx}_${Date.now()}`,
+        weekNumber: weekNum,
+        dayNumber: idx + 1,
+        day: day,
+        title: `${this.capitalizeFirst(day)} Training`,
+        date: this.calculateSessionDate(weekNum, day),
+        time: '08:00',
+        duration: 90,
+        location: academyInfo.location || 'Training Field',
+        type: 'General Training',
+        participants: this.estimateParticipants(academyInfo.ageGroup),
+        status: 'scheduled',
+        academyName: academyInfo.academyName,
+        sport: academyInfo.sport,
+        ageGroup: academyInfo.ageGroup,
+        
+        rawContent: text.substring(0, 1000),
+        documentContent: text.substring(0, 1000),
+        
+        activities: ['Training activities'],
+        focus: ['general fitness']
+      };
+      
+      weekSession.dailySessions.push(dailySession);
+    });
+    
+    sessions.push(weekSession);
+  }
+  
+  return sessions;
+}
+
+extractDayContentFromText(text, day) {
+  const dayPattern = new RegExp(`${day}.*?(?=(monday|tuesday|wednesday|thursday|friday|saturday|sunday|week\\s*\\d+|$))`, 'gis');
+  const match = text.match(dayPattern);
+  return match ? match[0] : `Training content for ${day}`;
+}
+
+extractContentAroundMarker(text, marker) {
+  const start = Math.max(0, marker.position - 200);
+  const end = Math.min(text.length, marker.position + 800);
+  return text.substring(start, end);
+}
+
 extractDaysFromWeekContent(weekContent) {
   const daysFound = new Map();
   const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
