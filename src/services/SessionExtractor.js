@@ -384,6 +384,8 @@ async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
   const sessions = [];
   const { weekStructure, dayStructure } = structureAnalysis;
   
+  console.log('SessionExtractor: Extracting with weekly+daily structure');
+  
   // For each detected week
   weekStructure.detectedWeeks.forEach(weekNum => {
     const weekContent = this.extractWeekContent(text, weekNum, weekStructure.weekMarkers);
@@ -400,18 +402,29 @@ async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
       sport: academyInfo.sport
     };
     
-    // Extract days for this week
-    const weekDays = this.findDaysInWeekContent(weekContent, dayStructure);
-    weekDays.forEach((day, index) => {
-      const dailySession = this.createDailySessionFromDetection(
-        day,
-        weekNum,
-        index + 1,
-        academyInfo,
-        weekContent
+    // Extract ACTUAL days within this specific week content
+    const daysInWeek = this.extractDaysFromWeekContent(weekContent);
+    
+    // Group sessions by day
+    const sessionsByDay = this.groupSessionsByDay(weekContent, daysInWeek);
+    
+    // Create daily sessions with proper session grouping
+    Object.entries(sessionsByDay).forEach(([day, daySessions], dayIndex) => {
+      const dailySessionEntry = {
+        id: `day_${weekNum}_${dayIndex}_${Date.now()}`,
+        weekNumber: weekNum,
+        dayNumber: dayIndex + 1,
+        day: day,
+        date: this.calculateSessionDate(weekNum, day),
+        sessionsForDay: daySessions.map((sessionContent, sessionIdx) => 
+          this.createSessionFromContent(sessionContent, weekNum, dayIndex + 1, sessionIdx + 1, day, academyInfo)
+        )
+      };
+      
+      weekSession.dailySessions.push(dailySessionEntry);
+      weekSession.totalDuration += dailySessionEntry.sessionsForDay.reduce(
+        (sum, s) => sum + (s.duration || 0), 0
       );
-      weekSession.dailySessions.push(dailySession);
-      weekSession.totalDuration += dailySession.duration;
     });
     
     sessions.push(weekSession);
@@ -419,6 +432,112 @@ async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
   
   return sessions;
 }
+
+extractDaysFromWeekContent(weekContent) {
+  const daysFound = new Map();
+  const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  
+  const lines = weekContent.split('\n');
+  
+  lines.forEach((line, lineIndex) => {
+    const lineLower = line.toLowerCase();
+    
+    allDays.forEach(day => {
+      if (lineLower.includes(day) && !daysFound.has(day)) {
+        daysFound.set(day, {
+          day: day,
+          lineIndex: lineIndex,
+          content: line
+        });
+      }
+    });
+  });
+  
+  // Sort by appearance order
+  return Array.from(daysFound.values()).sort((a, b) => a.lineIndex - b.lineIndex);
+}
+
+groupSessionsByDay(weekContent, daysInWeek) {
+  const sessionsByDay = {};
+  
+  if (daysInWeek.length === 0) {
+    // No specific days found - create default structure
+    sessionsByDay['week_overview'] = [weekContent];
+    return sessionsByDay;
+  }
+  
+  // For each day, extract content until next day or end
+  daysInWeek.forEach((dayInfo, index) => {
+    const nextDayIndex = index + 1 < daysInWeek.length 
+      ? daysInWeek[index + 1].lineIndex 
+      : weekContent.split('\n').length;
+    
+    const lines = weekContent.split('\n');
+    const dayContent = lines.slice(dayInfo.lineIndex, nextDayIndex).join('\n');
+    
+    // Look for multiple sessions within this day
+    const sessionsInDay = this.extractMultipleSessionsFromDayContent(dayContent);
+    
+    sessionsByDay[dayInfo.day] = sessionsInDay.length > 0 ? sessionsInDay : [dayContent];
+  });
+  
+  return sessionsByDay;
+}
+
+extractMultipleSessionsFromDayContent(dayContent) {
+  const sessions = [];
+  const sessionMarkers = [
+    /session\s*\d+/gi,
+    /\d{1,2}:\d{2}/g, // Time markers
+    /warm[\s-]?up|technical|tactical|conditioning|cool[\s-]?down/gi
+  ];
+  
+  const lines = dayContent.split('\n');
+  let currentSession = [];
+  
+  lines.forEach(line => {
+    const hasMarker = sessionMarkers.some(pattern => pattern.test(line));
+    
+    if (hasMarker && currentSession.length > 0) {
+      sessions.push(currentSession.join('\n'));
+      currentSession = [line];
+    } else {
+      currentSession.push(line);
+    }
+  });
+  
+  if (currentSession.length > 0) {
+    sessions.push(currentSession.join('\n'));
+  }
+  
+  return sessions.length > 1 ? sessions : [dayContent];
+}
+
+createSessionFromContent(sessionContent, weekNum, dayNum, sessionNum, day, academyInfo) {
+  return {
+    id: `session_${weekNum}_${dayNum}_${sessionNum}_${Date.now()}`,
+    weekNumber: weekNum,
+    dayNumber: dayNum,
+    sessionNumber: sessionNum,
+    title: `Session ${sessionNum} - ${this.capitalizeFirst(day)}`,
+    day: day,
+    date: this.calculateSessionDate(weekNum, day),
+    time: this.extractTimeFromContext(sessionContent) || '08:00',
+    duration: this.extractDurationFromContext(sessionContent) || 90,
+    location: academyInfo.location || 'Training Field',
+    type: this.identifySessionType(sessionContent),
+    participants: this.estimateParticipants(academyInfo.ageGroup),
+    status: 'scheduled',
+    academyName: academyInfo.academyName,
+    sport: academyInfo.sport,
+    ageGroup: academyInfo.ageGroup,
+    activities: this.extractActivitiesFromContext(sessionContent),
+    rawContent: sessionContent,
+    documentContent: sessionContent,
+    focus: this.extractSessionFocus([sessionContent])
+  };
+}
+
 
 extractWeekContent(text, weekNumber, weekMarkers) {
   const weekMarker = weekMarkers.find(m => m.weekNumber === weekNumber);
@@ -463,6 +582,27 @@ createDailySessionFromDetection(dayMarker, weekNum, dayIndex, academyInfo, conte
     rawContent: dayMarker.context,
     focus: this.extractSessionFocus([dayMarker.context])
   };
+  // In createDailySessionFromDetection or similar methods, add:
+const dailySessionEntry = {
+  id: `day_${weekNum}_${dayIndex}_${Date.now()}`,
+  weekNumber: weekNum,
+  dayNumber: dayIndex + 1,
+  day: day,
+  date: this.calculateSessionDate(weekNum, day),
+  
+  // ADD: Complete week context
+  parentWeekSession: weekSession.id,
+  weekTitle: weekSession.title,
+  weekDescription: weekSession.description,
+  weekFocus: weekSession.focus,
+  
+  // Grouped sessions for this day
+  sessionsForDay: daySessions.map((sessionContent, sessionIdx) => ({
+    ...this.createSessionFromContent(sessionContent, weekNum, dayIndex + 1, sessionIdx + 1, day, academyInfo),
+    // ADD: Link back to day
+    parentDaySession: `day_${weekNum}_${dayIndex}_${Date.now()}`
+  }))
+};
 }
 
 extractTimeFromContext(context) {
@@ -1006,11 +1146,20 @@ extractSessionTime(content, dayInfo) {
   return null;
 }
 
-identifySessionType(content, dayInfo) {
-  const nearbyText = content.substring(
-    Math.max(0, dayInfo.position - 100),
-    Math.min(content.length, dayInfo.position + 200)
-  ).toLowerCase();
+identifySessionType(content, dayInfo = null) {
+  // If no dayInfo provided, analyze the entire content
+  let nearbyText;
+  if (dayInfo && dayInfo.position !== undefined) {
+    nearbyText = content.substring(
+      Math.max(0, dayInfo.position - 100),
+      Math.min(content.length, dayInfo.position + 200)
+    ).toLowerCase();
+  } else {
+    // Use the whole content if no position info available
+    nearbyText = typeof content === 'string' ? content.toLowerCase() : '';
+  }
+  
+  if (!nearbyText) return 'Team Training';
   
   if (nearbyText.includes('warm')) return 'Warm-up Session';
   if (nearbyText.includes('technical')) return 'Technical Training';

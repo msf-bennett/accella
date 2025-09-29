@@ -181,7 +181,6 @@ async selectDocument() {
 }
 
 // Add this method to your DocumentProcessor class
-
 async processTrainingPlan(documentId, options = {}) {
   try {
     await this.ensureInitialized();
@@ -225,7 +224,11 @@ async processTrainingPlan(documentId, options = {}) {
       ]);
     }
     
-    // Use AI-enhanced analysis to create training plan
+    // FIXED: Create the training plan BEFORE trying to use it
+    console.log('Creating training plan from document content...');
+    const trainingPlan = await this.parseTrainingPlanContent(text, document, options);
+    
+    // Now we can safely use trainingPlan for structure analysis
     console.log('Analyzing document with AI enhancement...');
     trainingPlan.structureAnalysis = await this.analyzeDocumentStructureIntelligently(text, document);
     
@@ -241,7 +244,7 @@ async processTrainingPlan(documentId, options = {}) {
     
     console.log('Training plan processing completed successfully');
     
-    // Add processing stats to the plan (optional enhancement)
+    // Add processing stats to the plan
     savedPlan.processingStats = {
       textLength: text.length,
       aiAnalyzed: trainingPlan.aiAnalyzed,

@@ -39,6 +39,55 @@ import AIService from '../../../services/AIService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
+const parseContentSections = (rawContent) => {
+  if (!rawContent) return [];
+  
+  const sections = [];
+  const lines = rawContent.split('\n');
+  let currentSection = { header: '', content: '' };
+  
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    
+    // Detect headers (lines that are all caps, or start with special markers)
+    if (trimmed.length > 0 && (
+      trimmed === trimmed.toUpperCase() && trimmed.length < 50 ||
+      trimmed.match(/^(DRILL|ACTIVITY|EXERCISE|WARM[- ]?UP|COOL[- ]?DOWN):/i)
+    )) {
+      if (currentSection.content) {
+        sections.push({ ...currentSection });
+      }
+      currentSection = { header: trimmed, content: '' };
+    } else if (trimmed) {
+      currentSection.content += (currentSection.content ? '\n' : '') + trimmed;
+    }
+  });
+  
+  if (currentSection.content) {
+    sections.push(currentSection);
+  }
+  
+  return sections;
+};
+
+const formatSessionContent = (rawContent) => {
+  if (!rawContent) return <Text>No content available</Text>;
+  
+  const sections = parseContentSections(rawContent);
+  
+  return sections.map((section, index) => (
+    <View key={index} style={{ marginBottom: SPACING.md }}>
+      {section.header && (
+        <Text style={[TEXT_STYLES.subtitle1, { fontWeight: 'bold', marginBottom: SPACING.xs }]}>
+          {section.header}
+        </Text>
+      )}
+      <Text style={[TEXT_STYLES.body2, { lineHeight: 20 }]}>
+        {section.content}
+      </Text>
+    </View>
+  ));
+};
 
 const SessionScheduleScreen = ({ navigation, route }) => {
   // Define fallback constants at the top
@@ -282,6 +331,17 @@ const SessionScheduleScreen = ({ navigation, route }) => {
       padding: spacing.xl,
       backgroundColor: colors.background,
     },
+    enhancementToggleCard: {
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    backgroundColor: colors.surface,
+    borderLeftWidth: 4,
+    borderLeftColor: '#9C27B0',
+  },
   };
 
   // Early return if no session data
@@ -364,6 +424,22 @@ const getRealtimeAdvice = async () => {
     ]).start();
   }, []);
 
+// On component mount, check for cached enhancement:
+useEffect(() => {
+  const loadCachedEnhancement = async () => {
+    try {
+      const cached = await AsyncStorage.getItem(`enhanced_session_${session.id}`);
+      if (cached) {
+        setImprovedContent(JSON.parse(cached));
+      }
+    } catch (error) {
+      console.warn('Could not load cached enhancement:', error);
+    }
+  };
+  
+  loadCachedEnhancement();
+}, [session.id]);
+
   // Calculate progress based on completed drills
   useEffect(() => {
     if (session.drills && session.drills.length > 0) {
@@ -403,6 +479,30 @@ const getRealtimeAdvice = async () => {
     }
   };
 
+  // Replace the toggle logic with:
+const [expandedItems, setExpandedItems] = useState({});
+
+const toggleItem = (itemId) => {
+  setExpandedItems(prev => ({
+    ...prev,
+    [itemId]: !prev[itemId]
+  }));
+};
+
+// Then in render:
+<TouchableOpacity
+  onPress={() => toggleItem(`week_${session.weekNumber}`)}
+  style={styles.expandableHeader}
+>
+  <Text>{expandedItems[`week_${session.weekNumber}`] ? 'Hide' : 'Show'} Daily Sessions</Text>
+  <Icon 
+    name={expandedItems[`week_${session.weekNumber}`] ? 'expand-less' : 'expand-more'} 
+    size={20}
+  />
+</TouchableOpacity>
+
+{expandedItems[`week_${session.weekNumber}`] && renderDailySessions()}
+
   const handleDrillComplete = (drillId) => {
     const newCompleted = new Set(completedDrills);
     if (newCompleted.has(drillId)) {
@@ -424,42 +524,56 @@ const getRealtimeAdvice = async () => {
     }
   };
 
+// In SessionScheduleScreen.js, after successful enhancement:
 const handleImproveSession = async () => {
-  console.log('Starting AI session improvement...');
   setImproving(true);
   
   try {
-    // Import AIService dynamically to avoid circular dependencies
-    const { default: AIService } = await import('../../../services/AIService');
-    
-    const userProfile = {
-      ageGroup: session.ageGroup || 'Youth',
-      sport: session.sport || 'General',
-      experience: session.difficulty || 'beginner'
-    };
-    
     const enhanced = await AIService.improveSingleSession(session, userProfile);
     
     if (enhanced && enhanced.enhancedSession) {
       setImprovedContent(enhanced);
       setShowImproved(true);
-      setSnackbarMessage('Session enhanced with AI successfully! 🚀');
+      
+      // NEW: Cache the enhancement
+      await AsyncStorage.setItem(
+        `enhanced_session_${session.id}`,
+        JSON.stringify(enhanced)
+      );
+      
+      setSnackbarMessage('Session enhanced successfully! 🚀');
       setSnackbarVisible(true);
-    } else {
-      throw new Error('No enhancement data received');
     }
-    
   } catch (error) {
-    console.error('AI Enhancement failed:', error);
-    Alert.alert(
-      'AI Enhancement Failed',
-      'Could not enhance the session with AI. Please try again later.',
-      [{ text: 'OK' }]
-    );
+    console.error('Enhancement failed:', error);
   } finally {
     setImproving(false);
   }
 };
+
+// Calculate actual stats from week data
+const calculateWeekStats = (weekData) => {
+  if (!weekData || !weekData.dailySessions) {
+    return { totalDrills: 0, totalMinutes: 0, participants: 15 };
+  }
+  
+  const stats = weekData.dailySessions.reduce((acc, daySession) => {
+    const daySessions = daySession.sessionsForDay || [daySession];
+    
+    daySessions.forEach(s => {
+      acc.totalDrills += (s.drills?.length || 0) + (s.activities?.length || 0);
+      acc.totalMinutes += s.duration || 0;
+    });
+    
+    return acc;
+  }, { totalDrills: 0, totalMinutes: 0 });
+  
+  stats.participants = weekData.participants || session.participants || 15;
+  return stats;
+};
+
+const weekStats = calculateWeekStats(session.weekData);
+
 
   const getDifficultyColor = (difficulty) => {
     const difficultyColors = {
@@ -582,75 +696,176 @@ const handleImproveSession = async () => {
   
 
  const renderTabContent = () => {
-  const contentToRender = showImproved && improvedContent 
-    ? improvedContent.enhancedSession 
+  // Determine which data source to use
+  const activeSessionData = showImproved && improvedContent 
+    ? {
+        ...session,
+        ...improvedContent.enhancedSession,
+        // Preserve critical metadata
+        weekNumber: session.weekNumber,
+        weekData: session.weekData,
+        sourcePlan: session.sourcePlan,
+        sourceDocument: session.sourceDocument
+      }
     : session;
     
   switch (activeTab) {
     case 'overview':
-      return renderOverview(contentToRender);
+      return renderOverview(activeSessionData);
     case 'plan':
-      return renderTrainingPlan(contentToRender);
+      return renderTrainingPlan(activeSessionData);
     case 'progress':
-      return renderProgress(contentToRender);
+      return renderProgress(activeSessionData);
     case 'notes':
-      return renderNotes(contentToRender);
+      return renderNotes(activeSessionData);
     default:
-      return renderOverview(contentToRender);
+      return renderOverview(activeSessionData);
   }
 };
 
-  const renderOverview = (contentData = session) => (
-  <View style={styles.tabContent}>
-    {showImproved && improvedContent && (
-      <Card style={styles.sectionCard}>
-        <Card.Content>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md }}>
-            <Icon name="auto-awesome" size={24} color="#FFD700" />
-            <Text style={[textStyles.h3, { marginLeft: spacing.sm, color: "#FFD700" }]}>
-              AI Enhancement Applied
-            </Text>
-          </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            {improvedContent.improvements.map((improvement, index) => (
-              <Chip key={index} style={[styles.chip, { backgroundColor: colors.success + '20' }]} mode="outlined">
-                {improvement}
-              </Chip>
-            ))}
-          </View>
-        </Card.Content>
-      </Card>
-    )}
+const renderOverview = (contentData = session) => {
+  // Calculate actual stats from the week data
+  const weekData = contentData.weekData || {};
+  const dailySessions = weekData.dailySessions || [];
+  
+  // Count total drills across all daily sessions
+  const totalDrills = dailySessions.reduce((sum, daySession) => {
+    if (daySession.sessionsForDay && Array.isArray(daySession.sessionsForDay)) {
+      return sum + daySession.sessionsForDay.reduce((daySum, s) => {
+        return daySum + (s.drills?.length || 0);
+      }, 0);
+    }
+    return sum + (daySession.drills?.length || 0);
+  }, 0);
+  
+  // Calculate total duration
+  const totalMinutes = weekData.totalDuration || contentData.duration || 0;
+  
+  // Get participants count
+  const participants = contentData.participants || weekData.participants || 'N/A';
 
-      {/* Week Information */}
+  return (
+    <View style={styles.tabContent}>
+      {showImproved && improvedContent && (
+        <Card style={styles.sectionCard}>
+          <Card.Content>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md }}>
+              <Icon name="auto-awesome" size={24} color="#FFD700" />
+              <Text style={[textStyles.h3, { marginLeft: spacing.sm, color: "#FFD700" }]}>
+                AI Enhancement Applied
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {improvedContent.improvements.map((improvement, index) => (
+                <Chip key={index} style={[styles.chip, { backgroundColor: colors.success + '20' }]} mode="outlined">
+                  {improvement}
+                </Chip>
+              ))}
+            </View>
+          </Card.Content>
+        </Card>
+      )}
+
+      {session.isWeekOverview ? (
+        <Card style={styles.weekOverviewCard}>
+          <Card.Content>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.md }}>
+              <Icon name="calendar-view-week" size={24} color={COLORS.primary} />
+              <Text style={[TEXT_STYLES.h3, { marginLeft: SPACING.sm }]}>
+                Week {session.weekNumber} Overview
+              </Text>
+            </View>
+            
+            <Text style={TEXT_STYLES.body2}>
+              This week contains {session.weekData?.dailySessions?.length || 0} training days
+            </Text>
+            
+            {/* Show week-level stats */}
+            <View style={styles.weekStats}>
+              <StatItem 
+                icon="fitness-center"
+                label="Total Drills"
+                value={calculateTotalDrills(session.weekData)}
+              />
+              <StatItem 
+                icon="schedule"
+                label="Total Time"
+                value={`${session.weekData?.totalDuration || 0} min`}
+              />
+            </View>
+          </Card.Content>
+        </Card>
+      ) : (
+        <Card style={styles.dailySessionCard}>
+          <Card.Content>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm }}>
+              <Icon name="today" size={20} color={COLORS.secondary} />
+              <Text style={[TEXT_STYLES.subtitle1, { marginLeft: SPACING.xs }]}>
+                Daily Session - {session.day}
+              </Text>
+            </View>
+            {/* Daily session content */}
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Week Information with REAL data */}
       <Card style={styles.sectionCard}>
         <Card.Content>
           <Text style={[textStyles.h3, { marginBottom: spacing.md }]}>
-            Week {session.week} Overview
+            Week {contentData.weekNumber || session.week} Overview
           </Text>
           <Text style={[textStyles.body1, { lineHeight: 24, marginBottom: spacing.md }]}>
-            {session.weekDescription || session.description}
+            {contentData.weekDescription || weekData.description || session.description || 'Training week focused on skill development'}
           </Text>
           
           <View style={styles.overviewStats}>
             <View style={styles.statItem}>
               <Icon name="fitness-center" size={24} color={colors.primary} />
-              <Text style={styles.statNumber}>{session.drills?.length || 0}</Text>
+              <Text style={styles.statNumber}>{weekStats.totalDrills}</Text>
               <Text style={styles.statLabel}>Drills</Text>
             </View>
             <View style={styles.statItem}>
               <Icon name="schedule" size={24} color={colors.primary} />
-              <Text style={styles.statNumber}>{session.duration}</Text>
+              <Text style={styles.statNumber}>{weekStats.totalMinutes}</Text>
               <Text style={styles.statLabel}>Minutes</Text>
             </View>
             <View style={styles.statItem}>
               <Icon name="group" size={24} color={colors.primary} />
-              <Text style={styles.statNumber}>{session.participants || 'N/A'}</Text>
+              <Text style={styles.statNumber}>{weekStats.participants}</Text>
               <Text style={styles.statLabel}>Players</Text>
             </View>
           </View>
         </Card.Content>
       </Card>
+
+      {/* Show actual daily sessions count */}
+      {dailySessions.length > 0 && (
+        <Card style={styles.sectionCard}>
+          <Card.Content>
+            <Text style={[textStyles.h3, { marginBottom: spacing.md }]}>
+              Training Days
+            </Text>
+            <Text style={[textStyles.body2, { color: colors.textSecondary, marginBottom: spacing.sm }]}>
+              This week includes {dailySessions.length} training sessions
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {dailySessions.map((daySession, idx) => (
+                <Chip
+                  key={idx}
+                  compact
+                  mode="flat"
+                  style={[styles.chip, { backgroundColor: colors.primary + '20', marginBottom: 4 }]}
+                  textStyle={{ color: colors.primary, fontSize: 11 }}
+                >
+                  {daySession.day === 'week_overview' ? 'Overview' : 
+                    `${daySession.day.charAt(0).toUpperCase() + daySession.day.slice(1)}`}
+                </Chip>
+              ))}
+            </View>
+          </Card.Content>
+        </Card>
+      )}
 
       {/* Objectives */}
       {session.objectives && session.objectives.length > 0 && (
@@ -698,18 +913,31 @@ const handleImproveSession = async () => {
       )}
     </View>
   );
+};
 
   const renderTrainingPlan = () => (
     <View style={styles.tabContent}>
-      {/* Document Content */}
+      {/* Document Content - Full Session Text */}
       <Card style={styles.sectionCard}>
         <Card.Content>
           <Text style={[textStyles.h3, { marginBottom: spacing.md }]}>
-            Training Plan Details
+            Session Details
           </Text>
-          <Text style={[textStyles.body1, { lineHeight: 22 }]}>
-            {session.documentContent || session.rawContent || 'No detailed training plan content available.'}
-          </Text>
+          <ScrollView style={{ maxHeight: 400 }}>
+            {formatSessionContent(session.documentContent || session.rawContent)}
+          </ScrollView>
+          <Button
+            mode="outlined"
+            compact
+            style={{ marginTop: spacing.md }}
+            onPress={() => {
+              setSnackbarMessage('Session content ready to copy');
+              setSnackbarVisible(true);
+            }}
+            icon="content-copy"
+          >
+            Copy Session Text
+          </Button>
         </Card.Content>
       </Card>
 
@@ -882,49 +1110,85 @@ const handleImproveSession = async () => {
     </View>
   );
 
-const renderEnhancementToggle = () => (
-  <Surface style={[styles.sessionInfoCard, { marginTop: 0 }]}>
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Icon 
-          name="auto-awesome" 
-          size={20} 
-          color={showImproved ? "#FFD700" : colors.textSecondary} 
-        />
-        <Text style={[textStyles.subtitle1, { marginLeft: spacing.sm }]}>
-          {showImproved ? 'AI Enhanced View' : 'Original Content'}
-        </Text>
+const renderEnhancementToggle = () => {
+  if (!aiEnhancementAvailable) return null;
+  
+  return (
+    <Surface style={[styles.enhancementToggleCard, { marginHorizontal: spacing.md, marginVertical: spacing.sm }]}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.md }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+          <Icon 
+            name="auto-awesome" 
+            size={24} 
+            color={showImproved ? "#FFD700" : colors.textSecondary} 
+          />
+          <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+            <Text style={[textStyles.subtitle1, { fontWeight: 'bold' }]}>
+              {showImproved ? 'AI Enhanced View' : 'Original Content'}
+            </Text>
+            <Text style={[textStyles.caption, { color: colors.textSecondary }]}>
+              {improvedContent ? 'Toggle between versions' : 'Enhance with AI first'}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={[textStyles.caption, { marginRight: spacing.sm, fontWeight: '500' }]}>
+            {showImproved ? 'Enhanced' : 'Original'}
+          </Text>
+          <TouchableOpacity
+            onPress={() => {
+              if (improvedContent) {
+                setShowImproved(!showImproved);
+              } else {
+                handleImproveSession();
+              }
+            }}
+            activeOpacity={0.7}
+            style={{
+              width: 50,
+              height: 30,
+              borderRadius: 15,
+              backgroundColor: showImproved && improvedContent ? "#FFD700" : colors.textSecondary,
+              justifyContent: 'center',
+              alignItems: showImproved ? 'flex-end' : 'flex-start',
+              paddingHorizontal: 3,
+              opacity: improvedContent ? 1 : 0.7
+            }}
+          >
+            <View style={{
+              width: 24,
+              height: 24,
+              borderRadius: 12,
+              backgroundColor: 'white',
+              elevation: 2,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.2,
+              shadowRadius: 2,
+            }} />
+          </TouchableOpacity>
+        </View>
       </View>
       
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={[textStyles.caption, { marginRight: spacing.sm }]}>
-          {showImproved ? 'Enhanced' : 'Original'}
-        </Text>
-        <TouchableOpacity
-          onPress={() => setShowImproved(!showImproved)}
-          disabled={!improvedContent}
-          style={{
-            width: 50,
-            height: 30,
-            borderRadius: 15,
-            backgroundColor: showImproved && improvedContent ? colors.primary : colors.textSecondary,
-            justifyContent: 'center',
-            alignItems: showImproved ? 'flex-end' : 'flex-start',
-            paddingHorizontal: 3,
-            opacity: improvedContent ? 1 : 0.5
-          }}
-        >
-          <View style={{
-            width: 24,
-            height: 24,
-            borderRadius: 12,
-            backgroundColor: 'white'
-          }} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  </Surface>
-);
+      {!improvedContent && (
+        <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
+          <Button
+            mode="contained"
+            onPress={handleImproveSession}
+            loading={improving}
+            disabled={improving}
+            style={{ backgroundColor: "#9C27B0" }}
+            icon="auto-awesome"
+            compact
+          >
+            {improving ? 'Enhancing...' : 'Enhance Session with AI'}
+          </Button>
+        </View>
+      )}
+    </Surface>
+  );
+};
 
   const renderTabNavigation = () => (
     <Surface style={styles.tabContainer}>
@@ -958,63 +1222,61 @@ const renderEnhancementToggle = () => (
   );
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} translucent />
-      
-      {renderHeader()}
-      {renderTabNavigation()}
+  <View style={styles.container}>
+    <StatusBar barStyle="light-content" backgroundColor={colors.primary} translucent />
+    
+    {renderHeader()}
+    {renderTabNavigation()}
 
-      <Animated.View
-        style={[
-          styles.content,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }]
-          }
-        ]}
+    <Animated.View
+      style={[
+        styles.content,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }]
+        }
+      ]}
+    >
+      <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-            />
-          }
-          showsVerticalScrollIndicator={false}
-        >
-          {renderSessionInfo()}
-          {renderTabContent()}
-          {renderEnhancementToggle()}
-        </ScrollView>
-      </Animated.View>
-
-      {/* Start/End Session FAB */}
+        {renderSessionInfo()}
+        {renderEnhancementToggle()}  {/* Moved here - right after session info */}
+        {renderTabContent()}
+      </ScrollView>
+    </Animated.View>
+    
       {/* AI Enhancement FAB */}
-      <FAB
-        icon={improving ? "hourglass-empty" : sessionStarted ? "stop" : improvedContent ? "auto-awesome" : "play-arrow"}
-        style={[
-          styles.fab,
-          { backgroundColor: improving ? colors.warning : sessionStarted ? colors.error : improvedContent ? "#FFD700" : colors.success }
-        ]}
-        onPress={improving ? null : (improvedContent ? handleImproveSession : sessionStarted ? handleStartSession : handleImproveSession)}
-        label={improving ? "Enhancing..." : sessionStarted ? "End Session" : improvedContent ? "Re-enhance" : "Enhance with AI"}
-        loading={improving}
-      />
+    <FAB
+      icon={improving ? "hourglass-empty" : sessionStarted ? "stop" : "play-arrow"}
+      style={[
+        styles.fab,
+        { backgroundColor: improving ? colors.warning : sessionStarted ? colors.error : colors.success }
+      ]}
+      onPress={improving ? null : handleStartSession}
+      label={improving ? "Enhancing..." : sessionStarted ? "End Session" : "Start Session"}
+      loading={improving}
+    />
 
-      {/* Success Snackbar */}
-      <Portal>
-        <Snackbar
-          visible={snackbarVisible}
-          onDismiss={() => setSnackbarVisible(false)}
-          duration={3000}
-          style={{ backgroundColor: colors.success }}
-        >
-          <Text style={{ color: 'white' }}>{snackbarMessage}</Text>
-        </Snackbar>
-      </Portal>
-    </View>
-  );
+    <Portal>
+      <Snackbar
+        visible={snackbarVisible}
+        onDismiss={() => setSnackbarVisible(false)}
+        duration={3000}
+        style={{ backgroundColor: colors.success }}
+      >
+        <Text style={{ color: 'white' }}>{snackbarMessage}</Text>
+      </Snackbar>
+    </Portal>
+  </View>
+);
 };
 
 export default SessionScheduleScreen;

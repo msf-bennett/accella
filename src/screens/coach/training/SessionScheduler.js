@@ -142,12 +142,29 @@ const SessionScheduler = ({ navigation }) => {
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [aiRecommendations, setAiRecommendations] = useState([]);
+  const [expandedDays, setExpandedDays] = useState({});
+  const [expandedSessions, setExpandedSessions] = useState({});
 
   // Session data
   const [extractedSessions, setExtractedSessions] = useState([]);
   const [manualSessions, setManualSessions] = useState([]);
   const [trainingPlans, setTrainingPlans] = useState([]);
   const [allSessions, setAllSessions] = useState([]);
+
+
+      const toggleDayExpanded = (dayId) => {
+      setExpandedDays(prev => ({
+        ...prev,
+        [dayId]: !prev[dayId]
+      }));
+    };
+
+    const toggleSessionExpanded = (sessionId) => {
+    setExpandedSessions(prev => ({
+      ...prev,
+      [sessionId]: !prev[sessionId]
+    }));
+  };
 
   // Create session state
   const [newSession, setNewSession] = useState({
@@ -195,129 +212,144 @@ const SessionScheduler = ({ navigation }) => {
     }).start();
   }, []);
 
-  const initializeSessionData = async () => {
-    try {
-      setLoading(true);
-      console.log('Initializing session data...');
+ const initializeSessionData = async () => {
+  try {
+    setLoading(true);
+    console.log('Initializing session data...');
 
-      // Load training plans
-      const plans = await DocumentProcessor.getTrainingPlans();
-      setTrainingPlans(plans);
-      console.log('Loaded training plans:', plans.length);
+    // Load training plans
+    const plans = await DocumentProcessor.getTrainingPlans();
+    setTrainingPlans(plans);
+    console.log('Loaded training plans:', plans.length);
 
-      // Extract sessions from all training plans with extracted sessions
-      const allExtractedSessions = [];
-      
-      for (const plan of plans) {
-        try {
-          console.log('Processing plan:', plan.title);
+    // Extract sessions from all training plans with extracted sessions
+    const allExtractedSessions = [];
+    
+    for (const plan of plans) {
+      try {
+        console.log('Processing plan:', plan.title);
+        
+        // Check if plan has a source document and can extract sessions
+        if (plan.sourceDocument) {
+          const documents = await DocumentProcessor.getStoredDocuments();
+          const sourceDoc = documents.find(doc => doc.id === plan.sourceDocument);
           
-          // Check if plan has a source document and can extract sessions
-          if (plan.sourceDocument) {
-            const documents = await DocumentProcessor.getStoredDocuments();
-            const sourceDoc = documents.find(doc => doc.id === plan.sourceDocument);
+          if (sourceDoc) {
+            console.log('Found source document for plan:', plan.title);
             
-            if (sourceDoc) {
-              console.log('Found source document for plan:', plan.title);
-              
-              // Extract sessions from the document
-              const extractionResult = await SessionExtractor.extractSessionsFromDocument(sourceDoc, plan);
-              
-              if (extractionResult && extractionResult.sessions) {
-                // Convert weekly sessions to individual daily sessions
-                extractionResult.sessions.forEach((weekSession, weekIndex) => {
-                  // Add the week session itself
-                  const weekSessionData = {
-                    id: `week_${weekSession.id}`,
-                    title: `${plan.title} - ${weekSession.title}`,
-                    day: 'week_overview',
-                    date: calculateSessionDate(weekIndex + 1, 'monday'),
-                    time: '08:00',
-                    duration: weekSession.totalDuration || 120,
-                    location: 'Training Facility',
-                    type: 'Weekly Plan',
-                    participants: 15,
-                    status: 'scheduled',
-                    academyName: plan.title,
-                    sport: plan.category || 'General',
-                    ageGroup: extractionResult.academyInfo?.ageGroup || 'Youth',
-                    difficulty: plan.difficulty || 'intermediate',
-                    weekNumber: weekSession.weekNumber,
-                    weekData: weekSession,
-                    planTitle: plan.title,
-                    sourcePlan: plan.id,
-                    sourceDocument: sourceDoc.id,
-                    isWeekOverview: true,
-                    focus: weekSession.focus || [],
-                    notes: weekSession.description || '',
-                    activities: [],
-                    drills: [],
-                    objectives: []
-                  };
-                  
-                  allExtractedSessions.push(weekSessionData);
-
-                  // Add individual daily sessions
-                  if (weekSession.dailySessions && weekSession.dailySessions.length > 0) {
-                    weekSession.dailySessions.forEach((dailySession, dayIndex) => {
-                      const enhancedDailySession = {
-                        ...dailySession,
-                        id: `daily_${dailySession.id}`,
-                        title: `${plan.title} - Week ${weekSession.weekNumber}, ${dailySession.day.charAt(0).toUpperCase() + dailySession.day.slice(1)} Training`,
-                        academyName: plan.title,
-                        sport: plan.category || 'General',
-                        planTitle: plan.title,
-                        sourcePlan: plan.id,
-                        sourceDocument: sourceDoc.id,
-                        weekData: weekSession,
-                        parentWeekSession: weekSessionData.id,
-                        isWeekOverview: false
-                      };
-                      
-                      allExtractedSessions.push(enhancedDailySession);
-                    });
-                  }
-                });
+            // Extract sessions from the document
+            const extractionResult = await SessionExtractor.extractSessionsFromDocument(sourceDoc, plan);
+            
+            if (extractionResult && extractionResult.sessions) {
+              // Convert weekly sessions to individual daily sessions
+              extractionResult.sessions.forEach((weekSession, weekIndex) => {
+                // Add the week session itself
+                const weekSessionData = {
+                  id: `week_${weekSession.id}`,
+                  title: `${plan.title} - ${weekSession.title}`,
+                  day: 'week_overview',
+                  date: calculateSessionDate(weekIndex + 1, 'monday'),
+                  time: '08:00',
+                  duration: weekSession.totalDuration || 120,
+                  location: 'Training Facility',
+                  type: 'Weekly Plan',
+                  participants: 15,
+                  status: 'scheduled',
+                  academyName: plan.title,
+                  sport: plan.category || 'General',
+                  ageGroup: extractionResult.academyInfo?.ageGroup || 'Youth',
+                  difficulty: plan.difficulty || 'intermediate',
+                  weekNumber: weekSession.weekNumber,
+                  weekData: weekSession,
+                  planTitle: plan.title,
+                  sourcePlan: plan.id,
+                  sourceDocument: sourceDoc.id,
+                  isWeekOverview: true,
+                  focus: weekSession.focus || [],
+                  notes: weekSession.description || '',
+                  activities: [],
+                  drills: [],
+                  objectives: []
+                };
                 
-                console.log('Extracted sessions for plan:', plan.title, 'Total sessions:', allExtractedSessions.length);
-              }
-            } else {
-              console.warn('Source document not found for plan:', plan.title);
+                allExtractedSessions.push(weekSessionData);
+
+                // Add individual daily sessions
+                if (weekSession.dailySessions && weekSession.dailySessions.length > 0) {
+                  weekSession.dailySessions.forEach((dailySession, dayIndex) => {
+                    const enhancedDailySession = {
+                      ...dailySession,
+                      id: `daily_${dailySession.id}`,
+                      title: `${plan.title} - Week ${weekSession.weekNumber}, ${dailySession.day.charAt(0).toUpperCase() + dailySession.day.slice(1)} Training`,
+                      academyName: plan.title,
+                      sport: plan.category || 'General',
+                      planTitle: plan.title,
+                      sourcePlan: plan.id,
+                      sourceDocument: sourceDoc.id,
+                      weekData: weekSession,
+                      parentWeekSession: weekSessionData.id,
+                      isWeekOverview: false
+                    };
+                    
+                    allExtractedSessions.push(enhancedDailySession);
+                  });
+                }
+              });
+              
+              console.log('Extracted sessions for plan:', plan.title, 'Total sessions:', allExtractedSessions.length);
             }
           } else {
-            console.warn('No source document reference for plan:', plan.title);
+            console.warn('Source document not found for plan:', plan.title);
           }
-        } catch (error) {
-          console.error('Error processing plan:', plan.title, error.message);
+        } else {
+          console.warn('No source document reference for plan:', plan.title);
         }
+      } catch (error) {
+        console.error('Error processing plan:', plan.title, error.message);
+        // Continue processing other plans even if one fails
       }
+    }
 
-      setExtractedSessions(allExtractedSessions);
-      console.log('Total extracted sessions:', allExtractedSessions.length);
+    setExtractedSessions(allExtractedSessions);
+    console.log('Total extracted sessions:', allExtractedSessions.length);
 
-      // Combine with manual sessions
-      const combinedSessions = [
-        ...allExtractedSessions,
-        ...manualSessions
-      ].sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Combine with manual sessions
+    const combinedSessions = [
+      ...allExtractedSessions,
+      ...manualSessions
+    ].sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      setAllSessions(combinedSessions);
+    setAllSessions(combinedSessions);
 
-      // In initializeSessionData()
+    // Define userProfile BEFORE using it
+    const userProfile = {
+      ageGroup: user?.ageGroup || 'Youth',
+      sport: user?.preferredSport || 'General',
+      experience: user?.experience || 'intermediate'
+    };
+
+    // Get AI recommendations with error handling
+    try {
       const recommendations = await AIService.getSessionRecommendations(
         allExtractedSessions,
         userProfile
       );
       setAiRecommendations(recommendations);
-
     } catch (error) {
-      console.error('Error initializing session data:', error);
-      setSnackbarMessage('Failed to load session data');
-      setSnackbarVisible(true);
-    } finally {
-      setLoading(false);
+      console.warn('Could not load AI recommendations:', error);
+      setAiRecommendations([]);
     }
-  };
+
+  } catch (error) {
+    console.error('Error initializing session data:', error);
+    setSnackbarMessage('Failed to load session data');
+    setSnackbarVisible(true);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   // Helper function to calculate session dates
   const calculateSessionDate = (weekNumber, dayName) => {
@@ -400,28 +432,25 @@ const SessionScheduler = ({ navigation }) => {
     }
   };
 
-  const handleSessionPress = (session) => {
-    // Ensure we have all required data for SessionScheduleScreen
-    const sessionDataForNavigation = {
-      ...session,
-      // Ensure we have all required fields
-      id: session.id,
-      title: session.title,
-      academyName: session.academyName || 'Training Academy',
-      sport: session.sport || 'General',
-      weekNumber: session.weekNumber,
-      weekData: session.weekData || session,
-      planTitle: session.planTitle || 'Training Session',
-      sourcePlan: session.sourcePlan,
-      sourceDocument: session.sourceDocument
-    };
-
-    navigation.navigate('SessionScheduleScreen', {
-      sessionData: sessionDataForNavigation,
-      planTitle: session.planTitle || 'Training Session',
-      academyName: session.academyName || 'Training Academy'
-    });
+const handleSessionPress = (session) => {
+  // Ensure we have complete session data with week information
+  const completeSessionData = {
+    ...session,
+    weekData: session.weekData || {},
+    weekNumber: session.weekNumber || session.week,
+    weekTitle: session.weekTitle || session.title,
+    planTitle: session.planTitle || 'Training Session',
+    academyName: session.academyName || 'Training Academy',
+    documentContent: session.documentContent || session.rawContent || '',
+    rawContent: session.rawContent || session.documentContent || ''
   };
+
+  navigation.navigate('SessionScheduleScreen', {
+    sessionData: completeSessionData,
+    planTitle: completeSessionData.planTitle,
+    academyName: completeSessionData.academyName
+  });
+};
 
   const handleStartSession = (session) => {
     Alert.alert(
@@ -701,6 +730,27 @@ const SessionScheduler = ({ navigation }) => {
       borderRadius: 8,
       backgroundColor: COLORS?.primary || COLORS_FALLBACK.primary,
     },
+    daySessionContainer: {
+  backgroundColor: COLORS.surface,
+  borderRadius: 8,
+  padding: SPACING.sm,
+  marginBottom: SPACING.sm,
+  borderLeftWidth: 3,
+  borderLeftColor: COLORS.primary,
+},
+dayHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+},
+individualSessionItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  padding: SPACING.sm,
+  backgroundColor: 'rgba(0,0,0,0.02)',
+  borderRadius: 6,
+  marginBottom: SPACING.xs,
+},
   };
 
 const renderHeader = () => (
@@ -770,6 +820,10 @@ const renderHeader = () => (
 const renderSessionCard = ({ item: session, index }) => {
   const typeConfig = getSessionTypeConfig(session.type || 'training');
   const isFromPlan = !session.isManual;
+  
+  // Get weekSession from the session's weekData property
+  const weekData = session.weekData || {};
+  const dailySessions = weekData.dailySessions || [];
   
   const CardWrapper = Platform.OS === 'web' ? View : Animated.View;
   const cardProps = Platform.OS === 'web' ? {} : { entering: FadeInRight.delay(index * 50) };
@@ -862,6 +916,119 @@ const renderSessionCard = ({ item: session, index }) => {
               </View>
             </View>
           </LinearGradient>
+
+          <Card.Content style={styles.cardContent}>
+
+                <Card.Content style={styles.cardContent}>
+              {/* ADD: Expand/Collapse button for week details */}
+              {dailySessions.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => toggleSessionExpanded(session.id)}
+                  style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    paddingVertical: SPACING.xs,
+                    marginBottom: SPACING.sm 
+                  }}
+                >
+                  <Text style={[TEXT_STYLES.body2, { fontWeight: '600' }]}>
+                    {expandedSessions[session.id] ? 'Hide' : 'Show'} Daily Sessions
+                  </Text>
+                  <Icon 
+                    name={expandedSessions[session.id] ? 'expand-less' : 'expand-more'} 
+                    size={20} 
+                    color={COLORS?.textSecondary || COLORS_FALLBACK.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+          </Card.Content>
+
+            {/* Days Summary */}
+            <View style={{ marginBottom: SPACING.sm }}>
+              <Text style={[TEXT_STYLES.caption, { color: COLORS.textSecondary, marginBottom: 4 }]}>
+                Training Days: {dailySessions.length} days
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {dailySessions.map((daySession, idx) => (
+                  <Chip
+                    key={idx}
+                    compact
+                    mode="outlined"
+                    style={{ marginRight: 4, marginBottom: 4, height: 24 }}
+                    textStyle={{ fontSize: 10 }}
+                  >
+                    {daySession.day === 'week_overview' ? 'Overview' : daySession.day}
+                    {daySession.sessionsForDay && ` (${daySession.sessionsForDay.length})`}
+                  </Chip>
+                ))}
+              </View>
+            </View>
+
+            {expandedSessions[session.id] && dailySessions.length > 0 && (
+            <View style={{ marginTop: SPACING.md }}>
+              <Text style={[TEXT_STYLES.subtitle2, { fontWeight: 'bold', marginBottom: SPACING.sm }]}>
+                Daily Sessions:
+              </Text>
+              
+              {dailySessions.map((daySession, dayIdx) => (
+                <View key={dayIdx} style={styles.daySessionContainer}>
+                  <TouchableOpacity
+                    onPress={() => toggleDayExpanded(`${session.id}_${dayIdx}`)}
+                    style={styles.dayHeader}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[TEXT_STYLES.subtitle1, { fontWeight: '600' }]}>
+                        {daySession.day === 'week_overview' ? 'Week Overview' : 
+                          `${daySession.day.charAt(0).toUpperCase() + daySession.day.slice(1)}`}
+                      </Text>
+                      <Text style={[TEXT_STYLES.caption, { color: COLORS.textSecondary }]}>
+                        {daySession.sessionsForDay ? daySession.sessionsForDay.length : 1} session(s)
+                      </Text>
+                    </View>
+                    <IconButton
+                      icon={expandedDays[`${session.id}_${dayIdx}`] ? 'expand-less' : 'expand-more'}
+                      size={20}
+                    />
+                  </TouchableOpacity>
+
+                  {expandedDays[`${session.id}_${dayIdx}`] && daySession.sessionsForDay && (
+                    <View style={{ marginLeft: SPACING.md, marginTop: SPACING.sm }}>
+                      {daySession.sessionsForDay.map((innerSession, sessIdx) => (
+                        <TouchableOpacity
+                          key={sessIdx}
+                          onPress={() => handleSessionPress(innerSession)}
+                          style={styles.individualSessionItem}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={[TEXT_STYLES.body2, { fontWeight: '500' }]}>
+                              {innerSession.title}
+                            </Text>
+                            <Text style={[TEXT_STYLES.caption, { color: COLORS.textSecondary }]}>
+                              {innerSession.time} • {innerSession.duration}min
+                            </Text>
+                          </View>
+                          <Button
+                            mode="contained"
+                            compact
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              handleStartSession(innerSession);
+                            }}
+                            style={{ backgroundColor: COLORS.success }}
+                            contentStyle={{ height: 28 }}
+                          >
+                            Start
+                          </Button>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+          </Card.Content>
 
           {/* Body */}
           <Card.Content style={styles.cardContent}>
