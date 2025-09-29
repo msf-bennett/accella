@@ -554,17 +554,60 @@ const showDocumentOptions = (document) => {
 };
 
 const handleDailySessionPress = (dailySession, weekSession) => {
+  // Extract the raw content for this specific day from the document
+  const dayContent = extractDayContent(weekSession, dailySession);
+  
   navigation.navigate('SessionScheduleScreen', {
     sessionData: {
       ...dailySession,
+      weekNumber: weekSession.weekNumber,
       weekData: weekSession,
       planTitle: plan.title,
-      academyName: dailySession.academyName || plan.title
+      academyName: dailySession.academyName || plan.title,
+      
+      // CRITICAL: Include the full raw content for this day
+      rawContent: dayContent.rawContent,
+      documentContent: dayContent.documentContent,
+      
+      // Also include week context
+      weekTitle: weekSession.title,
+      weekDescription: weekSession.description,
+      weekFocus: weekSession.focus,
+      
+      // Original session data
+      sessionsForDay: dailySession.sessionsForDay || [dailySession]
     },
     planTitle: plan.title,
     academyName: dailySession.academyName || plan.title
   });
 };
+
+// Add this helper function after handleDailySessionPress
+const extractDayContent = (weekSession, dailySession) => {
+  // If we have the source document content, extract this day's section
+  if (weekSession.rawContent) {
+    const dayName = dailySession.day.toLowerCase();
+    const weekContent = weekSession.rawContent;
+    
+    // Find this day's section in the week content
+    const dayPattern = new RegExp(`(${dayName}|${dailySession.day}).*?(?=(monday|tuesday|wednesday|thursday|friday|saturday|sunday|week \\d+|$))`, 'gis');
+    const match = weekContent.match(dayPattern);
+    
+    if (match && match[0]) {
+      return {
+        rawContent: match[0].trim(),
+        documentContent: match[0].trim()
+      };
+    }
+  }
+  
+  // Fallback to session's own content
+  return {
+    rawContent: dailySession.rawContent || dailySession.documentContent || 'Training session',
+    documentContent: dailySession.documentContent || dailySession.rawContent || 'Training session'
+  };
+};
+
 
 const handleScheduleSession = (session) => {
   navigation.navigate('SessionScheduler', {

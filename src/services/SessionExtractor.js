@@ -390,8 +390,13 @@ async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
     const weekSession = {
       id: `week_${weekNum}_${Date.now()}`,
       weekNumber: weekNum,
-      title: this.extractWeekTitle(weekContent, weekNum), // This now returns proper format
+      title: this.extractWeekTitle(weekContent, weekNum),
       description: this.extractWeekDescription(weekContent),
+      
+      // CRITICAL: Store complete week raw content
+      rawContent: weekContent,
+      documentContent: weekContent,
+      
       dailySessions: [],
       totalDuration: 0,
       focus: this.extractWeekFocus(weekContent),
@@ -405,7 +410,7 @@ async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
     // Group sessions by day
     const sessionsByDay = this.groupSessionsByDay(weekContent, daysInWeek);
     
-    // Create daily sessions with proper session grouping
+   // Create daily sessions with proper session grouping
     Object.entries(sessionsByDay).forEach(([day, daySessions], dayIndex) => {
       const dailySessionEntry = {
         id: `day_${weekNum}_${dayIndex}_${Date.now()}`,
@@ -413,6 +418,11 @@ async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
         dayNumber: dayIndex + 1,
         day: day,
         date: this.calculateSessionDate(weekNum, day),
+        
+        // CRITICAL: Store the complete day content
+        rawContent: daySessions.join('\n\n'),
+        documentContent: daySessions.join('\n\n'),
+        
         sessionsForDay: daySessions.map((sessionContent, sessionIdx) => 
           this.createSessionFromContent(sessionContent, weekNum, dayIndex + 1, sessionIdx + 1, day, academyInfo)
         )
@@ -529,12 +539,14 @@ createSessionFromContent(sessionContent, weekNum, dayNum, sessionNum, day, acade
     sport: academyInfo.sport,
     ageGroup: academyInfo.ageGroup,
     activities: this.extractActivitiesFromContext(sessionContent),
+    
+    // CRITICAL: Store the complete raw content for this specific session
     rawContent: sessionContent,
     documentContent: sessionContent,
+    
     focus: this.extractSessionFocus([sessionContent])
   };
 }
-
 
 extractWeekContent(text, weekNumber, weekMarkers) {
   const weekMarker = weekMarkers.find(m => m.weekNumber === weekNumber);

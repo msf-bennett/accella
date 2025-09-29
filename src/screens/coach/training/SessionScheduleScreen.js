@@ -47,9 +47,16 @@ const parseContentSections = (rawContent) => {
   lines.forEach(line => {
     const trimmed = line.trim();
     
+    // Detect section headers - these patterns match your swimming document
     if (trimmed.length > 0 && (
+      // All caps headers
       trimmed === trimmed.toUpperCase() && trimmed.length < 50 ||
-      trimmed.match(/^(DRILL|ACTIVITY|EXERCISE|WARM[- ]?UP|COOL[- ]?DOWN):/i)
+      // Common session section patterns
+      /^(Warm[- ]?up|Technical Drill|Main [Ss]et|Kick [Ss]et|Conditioning Game|Special Drill|Gameplay|Cool[- ]?down|IM [Ss]et|Starts?\/Turns?)\s*(\(.*\))?$/i.test(trimmed) ||
+      // Numbered sections
+      /^\d+\.\s+[A-Z]/i.test(trimmed) ||
+      // Activity with colon
+      /^[A-Z][^:]{3,30}:\s*/i.test(trimmed)
     )) {
       if (currentSection.content) {
         sections.push({ ...currentSection });
@@ -902,92 +909,74 @@ const SessionScheduleScreen = ({ navigation, route }) => {
     );
   };
 
-  const renderTrainingPlan = () => (
+  const renderTrainingPlan = () => {
+  const contentToDisplay = session.documentContent || session.rawContent || '';
+  
+  return (
     <View style={styles.tabContent}>
+      {/* Show day-specific information */}
+      <Card style={styles.sectionCard}>
+        <Card.Content>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
+            <Icon name="today" size={24} color={colors.primary} />
+            <Text style={[textStyles.h3, { marginLeft: spacing.sm }]}>
+              {session.day === 'week_overview' ? 'Week Overview' : 
+                `${session.day.charAt(0).toUpperCase() + session.day.slice(1)} Training`}
+            </Text>
+          </View>
+          
+          {session.time && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs }}>
+              <Icon name="schedule" size={16} color={colors.textSecondary} />
+              <Text style={[textStyles.body2, { marginLeft: spacing.xs, color: colors.textSecondary }]}>
+                {session.time} • {session.duration} minutes
+              </Text>
+            </View>
+          )}
+        </Card.Content>
+      </Card>
+
+      {/* Display the complete session content */}
       <Card style={styles.sectionCard}>
         <Card.Content>
           <Text style={[textStyles.h3, { marginBottom: spacing.md }]}>
             Session Details
           </Text>
-          <ScrollView style={{ maxHeight: 400 }}>
-            {formatSessionContent(
-              session.documentContent || session.rawContent,
-              spacing,
-              textStyles
+          <ScrollView style={{ maxHeight: 600 }} nestedScrollEnabled>
+            {contentToDisplay ? (
+              formatSessionContent(contentToDisplay, spacing, textStyles)
+            ) : (
+              <Text style={textStyles.body2}>No detailed content available for this session.</Text>
             )}
           </ScrollView>
-          <Button
-            mode="outlined"
-            compact
-            style={{ marginTop: spacing.md }}
-            onPress={() => {
-              setSnackbarMessage('Session content ready to copy');
-              setSnackbarVisible(true);
-            }}
-            icon="content-copy"
-          >
-            Copy Session Text
-          </Button>
         </Card.Content>
       </Card>
 
-      {session.drills && session.drills.length > 0 && (
+      {/* Show all sessions for this day */}
+      {session.sessionsForDay && session.sessionsForDay.length > 1 && (
         <Card style={styles.sectionCard}>
           <Card.Content>
             <Text style={[textStyles.h3, { marginBottom: spacing.md }]}>
-              Training Drills ({session.drills.length})
+              Multiple Sessions Today
             </Text>
-            {session.drills.map((drill, index) => (
-              <View key={index} style={styles.drillItem}>
-                <TouchableOpacity
-                  style={styles.drillHeader}
-                  onPress={() => handleDrillComplete(drill.id || index)}
-                >
-                  <View style={styles.drillInfo}>
-                    <Icon
-                      name={completedDrills.has(drill.id || index) ? "check-circle" : "radio-button-unchecked"}
-                      size={24}
-                      color={completedDrills.has(drill.id || index) ? colors.success : colors.textSecondary}
-                    />
-                    <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                      <Text style={[textStyles.subtitle1, { fontWeight: 'bold' }]}>
-                        {drill.name || drill.title || `Drill ${index + 1}`}
-                      </Text>
-                      {drill.duration && (
-                        <Text style={[textStyles.caption, { color: colors.textSecondary }]}>
-                          Duration: {drill.duration} minutes
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-                
-                {drill.description && (
-                  <Text style={[textStyles.body2, { 
-                    marginTop: spacing.sm, 
-                    marginLeft: 36,
-                    color: colors.textSecondary 
-                  }]}>
-                    {drill.description}
-                  </Text>
-                )}
-
-                {drill.instructions && (
-                  <Text style={[textStyles.body2, { 
-                    marginTop: spacing.xs, 
-                    marginLeft: 36,
-                    fontStyle: 'italic' 
-                  }]}>
-                    {drill.instructions}
-                  </Text>
-                )}
-              </View>
+            <Text style={[textStyles.body2, { color: colors.textSecondary, marginBottom: spacing.sm }]}>
+              This day includes {session.sessionsForDay.length} training sessions
+            </Text>
+            {session.sessionsForDay.map((s, idx) => (
+              <Chip
+                key={idx}
+                style={[styles.chip, { marginBottom: spacing.xs }]}
+                mode="outlined"
+              >
+                Session {idx + 1}: {s.duration || 90} min
+              </Chip>
             ))}
           </Card.Content>
         </Card>
       )}
     </View>
   );
+};
 
   const renderProgress = () => (
     <View style={styles.tabContent}>
