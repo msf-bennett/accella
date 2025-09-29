@@ -23,85 +23,465 @@ class SessionExtractor {
       // Sport patterns
       sportPattern: /(soccer|football|basketball|tennis|volleyball|swimming)/i
     };
+
+    // Comprehensive equipment database
+this.equipmentDatabase = {
+  soccer: {
+    balls: ['soccer ball', 'football', 'size 3 ball', 'size 4 ball', 'size 5 ball', 'training ball', 'match ball'],
+    training: ['cones', 'markers', 'disc cones', 'flat markers', 'training poles', 'corner flags', 'boundary markers'],
+    goals: ['full size goal', 'portable goal', 'pop-up goal', 'mini goal', 'target goal', 'rebound goal'],
+    protection: ['shin guards', 'goalkeeper gloves', 'bibs', 'pinnies', 'training vests', 'scrimmage vests'],
+    advanced: ['agility ladder', 'speed ladder', 'hurdles', 'mini hurdles', 'slalom poles', 'training dummies', 'rebounders', 'passing arcs']
+  },
+  basketball: {
+    balls: ['basketball', 'size 5 ball', 'size 6 ball', 'size 7 ball', 'training ball', 'weighted ball'],
+    training: ['cones', 'markers', 'agility ladder', 'speed ladder', 'resistance bands', 'jump rope'],
+    hoops: ['regulation hoop', 'adjustable hoop', 'training hoop', 'mini hoop'],
+    advanced: ['shooting machine', 'dribble goggles', 'weighted vest', 'reaction ball', 'blocking pad', 'shooting targets']
+  },
+  tennis: {
+    basic: ['tennis ball', 'racket', 'net', 'court'],
+    training: ['cones', 'markers', 'agility ladder', 'ball hopper', 'target zones'],
+    advanced: ['ball machine', 'speed radar', 'training targets', 'resistance bands', 'video analysis']
+  },
+  volleyball: {
+    basic: ['volleyball', 'net', 'court markers', 'antenna'],
+    training: ['cones', 'volleyball cart', 'ball cart', 'training pads'],
+    protection: ['knee pads', 'ankle braces'],
+    advanced: ['blocking sled', 'spike trainer', 'jump trainer', 'setting target']
+  },
+  general: {
+    basic: ['cones', 'markers', 'balls', 'mats'],
+    strength: ['dumbbells', 'resistance bands', 'medicine ball', 'kettlebells'],
+    cardio: ['jump rope', 'agility ladder', 'hurdles'],
+    advanced: ['TRX', 'battle ropes', 'plyo boxes', 'resistance parachute']
   }
+};
+
+// Comprehensive drill database with detailed metadata
+this.drillDatabase = {
+  soccer: {
+    'dribbling through cones': { 
+      type: 'technical', 
+      equipment: ['cones', 'soccer ball'], 
+      minPlayers: 1, 
+      maxPlayers: 20, 
+      duration: '10-15 min',
+      skillLevel: 'beginner',
+      focus: ['ball control', 'close control', 'agility']
+    },
+    'pass and move': { 
+      type: 'technical', 
+      equipment: ['soccer ball', 'cones'], 
+      minPlayers: 2, 
+      maxPlayers: 20, 
+      duration: '15-20 min',
+      skillLevel: 'beginner',
+      focus: ['passing', 'movement', 'communication']
+    },
+    'rondo': { 
+      type: 'tactical', 
+      equipment: ['soccer ball', 'cones'], 
+      minPlayers: 5, 
+      maxPlayers: 12, 
+      duration: '15-20 min',
+      skillLevel: 'advanced',
+      focus: ['possession', 'quick thinking', 'technique under pressure']
+    },
+    'small sided game': { 
+      type: 'tactical', 
+      equipment: ['soccer ball', 'goals', 'bibs'], 
+      minPlayers: 6, 
+      maxPlayers: 12, 
+      duration: '20-30 min',
+      skillLevel: 'intermediate',
+      focus: ['game understanding', 'decision making', 'all skills']
+    }
+  },
+  basketball: {
+    'layup lines': { 
+      type: 'technical', 
+      equipment: ['basketball', 'hoop'], 
+      minPlayers: 4, 
+      maxPlayers: 20, 
+      duration: '10-15 min',
+      skillLevel: 'beginner',
+      focus: ['finishing', 'footwork', 'coordination']
+    },
+    'mikan drill': { 
+      type: 'technical', 
+      equipment: ['basketball', 'hoop'], 
+      minPlayers: 1, 
+      maxPlayers: 10, 
+      duration: '10-15 min',
+      skillLevel: 'intermediate',
+      focus: ['ambidextrous finishing', 'touch', 'repetition']
+    },
+    'shell drill': { 
+      type: 'tactical', 
+      equipment: ['basketball'], 
+      minPlayers: 4, 
+      maxPlayers: 12, 
+      duration: '15-20 min',
+      skillLevel: 'intermediate',
+      focus: ['defensive positioning', 'rotations', 'communication']
+    }
+  },
+  general: {
+    'circuit training': { 
+      type: 'conditioning', 
+      equipment: ['cones', 'mats', 'various'], 
+      minPlayers: 1, 
+      maxPlayers: 30, 
+      duration: '20-30 min',
+      skillLevel: 'all levels',
+      focus: ['fitness', 'strength', 'endurance']
+    },
+    'agility ladder': { 
+      type: 'technical', 
+      equipment: ['agility ladder'], 
+      minPlayers: 1, 
+      maxPlayers: 20, 
+      duration: '10-15 min',
+      skillLevel: 'all levels',
+      focus: ['footwork', 'coordination', 'speed']
+    }
+  }
+};
+
+  //Create a comprehensive activity taxonomy
+    this.activityTaxonomy = {
+      warmUp: {
+        keywords: ['warm', 'warmup', 'warm-up', 'activation', 'dynamic stretch', 'mobility', 'jog', 'jogging'],
+        synonyms: ['preparación', 'échauffement', 'aufwärmen', 'riscaldamento'],
+        activities: ['light jogging', 'dynamic stretching', 'movement prep', 'joint mobility']
+      },
+      technical: {
+        keywords: ['drill', 'practice', 'technique', 'skill', 'training', 'exercise', 'work'],
+        synonyms: ['técnica', 'technique', 'technik', 'tecnica'],
+        activities: ['ball control', 'passing drill', 'shooting practice', 'dribbling']
+      },
+      tactical: {
+        keywords: ['tactical', 'strategy', 'positioning', 'formation', 'game', 'match', 'scrimmage'],
+        synonyms: ['táctica', 'tactique', 'taktik', 'tattica'],
+        activities: ['small-sided game', 'positional play', 'team tactics', 'set pieces']
+      },
+      conditioning: {
+        keywords: ['conditioning', 'fitness', 'cardio', 'endurance', 'stamina', 'running', 'sprint'],
+        synonyms: ['acondicionamiento', 'conditionnement', 'kondition', 'condizionamento'],
+        activities: ['interval running', 'shuttle runs', 'fitness circuit', 'stamina work']
+      },
+      coolDown: {
+        keywords: ['cool', 'cooldown', 'cool-down', 'recovery', 'static stretch', 'flexibility'],
+        synonyms: ['enfriamiento', 'retour au calme', 'abkühlen', 'defaticamento'],
+        activities: ['static stretching', 'light walking', 'breathing exercises', 'foam rolling']
+      }
+    };
+
+    //Add Multi-Language Patterns
+    this.multiLangPatterns = {
+      week: {
+        english: ['week', 'wk', 'w'],
+        spanish: ['semana', 'sem'],
+        french: ['semaine', 'sem'],
+        german: ['woche', 'wo'],
+        portuguese: ['semana', 'sem'],
+        italian: ['settimana', 'sett']
+      },
+      day: {
+        english: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+        spanish: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'],
+        french: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'],
+        german: ['montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag', 'sonntag'],
+        portuguese: ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'],
+        italian: ['lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica']
+      },
+      duration: {
+        minutes: ['minutes', 'mins', 'min', 'minutos', 'minuti'],
+        hours: ['hours', 'hrs', 'hour', 'horas', 'ore', 'heures', 'stunden']
+      }
+    };
+
+    this.languageDetectionCache = new Map();
+      //mulitlanguage end
+
+  }
+  
+
+  //Add a fuzzy matching helper method
+fuzzyMatchWeek(text) {
+  // First try multi-lingual detection
+  const multiLangMatches = this.multiLingualWeekDetection(text);
+  if (multiLangMatches.length > 0) {
+    return {
+      matched: true,
+      weekNumber: multiLangMatches[0].weekNumber,
+      originalText: text,
+      language: multiLangMatches[0].language,
+      pattern: 'multi_lingual'
+    };
+  }
+  
+  // Fallback to original English-only patterns
+  const normalized = text.toLowerCase().trim();
+  const weekVariations = [
+    /w(?:ee)?k\s*(\d+)/i,
+    /semana\s*(\d+)/i,
+    /woche\s*(\d+)/i,
+    /training\s*week\s*(\d+)/i,
+    /phase\s*(\d+)/i,
+    /cycle\s*(\d+)/i,
+    /block\s*(\d+)/i
+  ];
+  
+  for (const pattern of weekVariations) {
+    const match = normalized.match(pattern);
+    if (match && match[1]) {
+      const weekNum = parseInt(match[1]);
+      if (weekNum > 0 && weekNum <= 52) {
+        return {
+          matched: true,
+          weekNumber: weekNum,
+          originalText: text,
+          pattern: pattern.toString()
+        };
+      }
+    }
+  }
+  
+  return { matched: false, weekNumber: null, originalText: text };
+}
+
+//Add Language Detection Method
+// Add after fuzzyMatchWeek method
+detectDocumentLanguage(text) {
+  // Check cache first
+  const cacheKey = text.substring(0, 500);
+  if (this.languageDetectionCache.has(cacheKey)) {
+    return this.languageDetectionCache.get(cacheKey);
+  }
+  
+  const sampleText = text.substring(0, 2000).toLowerCase();
+  const languageScores = {};
+  
+  // Score each language based on keyword frequency
+  for (const [lang, keywords] of Object.entries(this.multiLangPatterns.week)) {
+    languageScores[lang] = 0;
+    keywords.forEach(keyword => {
+      const matches = (sampleText.match(new RegExp(keyword, 'gi')) || []).length;
+      languageScores[lang] += matches;
+    });
+  }
+  
+  // Add day pattern scoring
+  for (const [lang, days] of Object.entries(this.multiLangPatterns.day)) {
+    days.forEach(day => {
+      const matches = (sampleText.match(new RegExp(day, 'gi')) || []).length;
+      languageScores[lang] = (languageScores[lang] || 0) + matches;
+    });
+  }
+  
+  // Find language with highest score
+  const detectedLang = Object.keys(languageScores).reduce((a, b) => 
+    languageScores[a] > languageScores[b] ? a : b
+  );
+  
+  const confidence = languageScores[detectedLang] > 3 ? 'high' : 'medium';
+  
+  const result = {
+    language: detectedLang,
+    confidence: confidence,
+    score: languageScores[detectedLang]
+  };
+  
+  this.languageDetectionCache.set(cacheKey, result);
+  
+  console.log('SessionExtractor: Detected language:', result);
+  return result;
+}
+
+multiLingualWeekDetection(text) {
+  const detectedLang = this.detectDocumentLanguage(text);
+  const weekKeywords = this.multiLangPatterns.week[detectedLang.language] || this.multiLangPatterns.week.english;
+  
+  const patterns = weekKeywords.map(keyword => 
+    new RegExp(`${keyword}\\s*(\\d+)`, 'gi')
+  );
+  
+  const matches = [];
+  patterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const weekNum = parseInt(match[1]);
+      if (weekNum > 0 && weekNum <= 52) {
+        matches.push({
+          weekNumber: weekNum,
+          position: match.index,
+          text: match[0],
+          language: detectedLang.language
+        });
+      }
+    }
+  });
+  
+  return matches;
+}
 
 // Main extraction method
-// Replace the existing extractSessionsFromDocument method in SessionExtractor.js
 async extractSessionsFromDocument(document, trainingPlan) {
   try {
-    PlatformUtils.logDebugInfo('Starting enhanced AI session extraction', {
-      documentId: document.id,
-      planId: trainingPlan.id
-    });
-
-    // Get DocumentProcessor and extract text
+    console.log('Starting intelligent session extraction');
+    
     const DocumentProcessor = (await import('./DocumentProcessor')).default;
     const extractionResult = await DocumentProcessor.extractDocumentText(document);
     const text = extractionResult.text;
-
-    // NEW: Enhanced document structure analysis
-    const structureAnalysis = await DocumentProcessor.analyzeDocumentStructure(text, document);
     
-    console.log('Enhanced structure analysis:', structureAnalysis);
-
-    // Extract academy info with structure context
+    // Use intelligent structure analysis
+    const structureAnalysis = await DocumentProcessor.analyzeDocumentStructureIntelligently(text, document);
+    
+    console.log('Structure pattern detected:', structureAnalysis.organizationPattern);
+    
     const academyInfo = this.extractAcademyInfo(text, trainingPlan, structureAnalysis);
     
-    // NEW: Smart session extraction based on structure
-    const sessions = await this.extractSessionsWithStructureAwareness(text, structureAnalysis, academyInfo);
+    // Route to appropriate extraction method based on detected structure
+    let sessions;
+    switch (structureAnalysis.organizationPattern) {
+      case 'weekly_with_days':
+        sessions = await this.extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo);
+        break;
+      case 'weekly_only':
+        sessions = await this.extractWeeklyOnlyStructure(text, structureAnalysis, academyInfo);
+        break;
+      case 'daily_only':
+        sessions = await this.extractDailyOnlyStructure(text, structureAnalysis, academyInfo);
+        break;
+      case 'session_based':
+        sessions = await this.extractSessionBasedStructure(text, structureAnalysis, academyInfo);
+        break;
+      default:
+        sessions = await this.extractUnstructuredContent(text, structureAnalysis, academyInfo);
+    }
     
-    // AI Enhancement with structure context
-    let enhancedSessions = sessions;
-    try {
-      enhancedSessions = await AIService.enhanceExtractedSessions(sessions, {
-        ageGroup: academyInfo.ageGroup,
-        sport: academyInfo.sport,
-        experience: trainingPlan.difficulty || 'beginner',
-        structureContext: structureAnalysis
-      });
-      console.log('Sessions enhanced with AI and structure awareness');
-    } catch (error) {
-      console.warn('AI enhancement failed, using structure-aware sessions:', error);
-    }
-
-    // Generate optimal schedule with structure insights
-    let optimizedSchedule = null;
-    try {
-      const schedulePreferences = this.deriveSchedulePreferences(structureAnalysis);
-      optimizedSchedule = await AIService.generateOptimalSchedule(trainingPlan, schedulePreferences);
-      console.log('Structure-aware schedule generated');
-    } catch (error) {
-      console.warn('Schedule generation failed:', error);
-    }
-
-    const result = {
+    return {
       academyInfo,
-      sessions: enhancedSessions,
-      optimizedSchedule,
-      structureAnalysis, // NEW: Include structure analysis
-      totalWeeks: enhancedSessions.length,
-      totalSessions: enhancedSessions.reduce((sum, week) => sum + week.dailySessions.length, 0),
+      sessions,
+      structureAnalysis,
+      totalWeeks: sessions.length,
+      totalSessions: sessions.reduce((sum, week) => sum + week.dailySessions.length, 0),
+      organizationPattern: structureAnalysis.organizationPattern,
       extractedAt: new Date().toISOString(),
       sourceDocument: document.id,
-      sourcePlan: trainingPlan.id,
-      aiEnhanced: enhancedSessions !== sessions,
-      aiScheduled: !!optimizedSchedule,
-      structureAware: true // NEW: Flag for structure-aware extraction
+      sourcePlan: trainingPlan.id
     };
-
-    PlatformUtils.logDebugInfo('Enhanced session extraction completed', {
-      totalWeeks: result.totalWeeks,
-      totalSessions: result.totalSessions,
-      structureLevel: structureAnalysis.organizationLevel.level,
-      aiEnhanced: result.aiEnhanced,
-      structureAware: result.structureAware
-    });
-
-    return result;
+    
   } catch (error) {
-    console.error('Enhanced session extraction failed:', error);
-    throw PlatformUtils.handlePlatformError(error, 'Enhanced Session Extraction');
+    console.error('Intelligent session extraction failed:', error);
+    throw error;
   }
+}
+
+async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
+  const sessions = [];
+  const { weekStructure, dayStructure } = structureAnalysis;
+  
+  // For each detected week
+  weekStructure.detectedWeeks.forEach(weekNum => {
+    const weekContent = this.extractWeekContent(text, weekNum, weekStructure.weekMarkers);
+    
+    const weekSession = {
+      id: `week_${weekNum}_${Date.now()}`,
+      weekNumber: weekNum,
+      title: `Week ${weekNum} Training`,
+      description: this.extractWeekDescription(weekContent),
+      dailySessions: [],
+      totalDuration: 0,
+      focus: this.extractWeekFocus(weekContent),
+      academyName: academyInfo.academyName,
+      sport: academyInfo.sport
+    };
+    
+    // Extract days for this week
+    const weekDays = this.findDaysInWeekContent(weekContent, dayStructure);
+    weekDays.forEach((day, index) => {
+      const dailySession = this.createDailySessionFromDetection(
+        day,
+        weekNum,
+        index + 1,
+        academyInfo,
+        weekContent
+      );
+      weekSession.dailySessions.push(dailySession);
+      weekSession.totalDuration += dailySession.duration;
+    });
+    
+    sessions.push(weekSession);
+  });
+  
+  return sessions;
+}
+
+extractWeekContent(text, weekNumber, weekMarkers) {
+  const weekMarker = weekMarkers.find(m => m.weekNumber === weekNumber);
+  if (!weekMarker) return '';
+  
+  const nextWeekMarker = weekMarkers.find(m => m.weekNumber === weekNumber + 1);
+  const endPos = nextWeekMarker ? nextWeekMarker.position : text.length;
+  
+  return text.substring(weekMarker.position, endPos);
+}
+
+findDaysInWeekContent(weekContent, dayStructure) {
+  const daysFound = [];
+  
+  dayStructure.dayMarkers.forEach(marker => {
+    if (weekContent.includes(marker.context.substring(0, 50))) {
+      daysFound.push(marker);
+    }
+  });
+  
+  return daysFound;
+}
+
+createDailySessionFromDetection(dayMarker, weekNum, dayIndex, academyInfo, content) {
+  return {
+    id: `session_${weekNum}_${dayIndex}_${Date.now()}`,
+    weekNumber: weekNum,
+    dayNumber: dayIndex,
+    title: `${academyInfo.academyName} - Week ${weekNum}, ${this.capitalizeFirst(dayMarker.day)} Training`,
+    day: dayMarker.day,
+    date: this.calculateSessionDate(weekNum, dayMarker.day),
+    time: this.extractTimeFromContext(dayMarker.context) || '08:00',
+    duration: this.extractDurationFromContext(dayMarker.context) || 90,
+    location: academyInfo.location || 'Training Field',
+    type: 'Team Training',
+    participants: 15,
+    status: 'scheduled',
+    academyName: academyInfo.academyName,
+    sport: academyInfo.sport,
+    ageGroup: academyInfo.ageGroup,
+    activities: this.extractActivitiesFromContext(dayMarker.context),
+    rawContent: dayMarker.context,
+    focus: this.extractSessionFocus([dayMarker.context])
+  };
+}
+
+extractTimeFromContext(context) {
+  const timeMatch = context.match(/(\d{1,2}):(\d{2})/);
+  return timeMatch ? timeMatch[0] : null;
+}
+
+extractDurationFromContext(context) {
+  const durationMatch = context.match(/(\d+)\s*(min|hour)/i);
+  if (durationMatch) {
+    const value = parseInt(durationMatch[1]);
+    return durationMatch[2].toLowerCase().includes('hour') ? value * 60 : value;
+  }
+  return null;
+}
+
+extractActivitiesFromContext(context) {
+  const lines = context.split('\n').filter(line => this.isActivity(line.trim()));
+  return lines.length > 0 ? lines : ['Training activities'];
 }
 
 // NEW: Structure-aware session extraction
@@ -125,6 +505,196 @@ async extractSessionsWithStructureAwareness(text, structureAnalysis, academyInfo
       return this.extractFromUnstructuredDocument(text, structureAnalysis, academyInfo);
   }
 }
+
+//Validation & Confidence Scoring
+validateAndScoreExtraction(extractedSessions, document, structureAnalysis) {
+  const validation = {
+    overallConfidence: 0,
+    warnings: [],
+    errors: [],
+    scores: {
+      structureScore: 0,
+      contentScore: 0,
+      consistencyScore: 0,
+      completenessScore: 0
+    },
+    sessionValidation: []
+  };
+  
+  // 1. Structure Score (0-25 points)
+  if (structureAnalysis.organizationLevel.level === 'highly_structured') {
+    validation.scores.structureScore = 25;
+  } else if (structureAnalysis.organizationLevel.level === 'moderately_structured') {
+    validation.scores.structureScore = 18;
+  } else if (structureAnalysis.organizationLevel.level === 'basic_structure') {
+    validation.scores.structureScore = 10;
+  } else {
+    validation.scores.structureScore = 5;
+    validation.warnings.push('Document has minimal structure - extraction may be incomplete');
+  }
+  
+  // 2. Content Score (0-25 points)
+  const avgContentLength = extractedSessions.reduce((sum, week) => {
+    const weekContent = week.dailySessions.reduce((wSum, session) => 
+      wSum + (session.rawContent?.length || 0), 0);
+    return sum + weekContent;
+  }, 0) / Math.max(extractedSessions.length, 1);
+  
+  if (avgContentLength > 500) {
+    validation.scores.contentScore = 25;
+  } else if (avgContentLength > 200) {
+    validation.scores.contentScore = 18;
+  } else if (avgContentLength > 100) {
+    validation.scores.contentScore = 10;
+    validation.warnings.push('Limited content per session - sessions may need manual review');
+  } else {
+    validation.scores.contentScore = 5;
+    validation.errors.push('Very limited content extracted - sessions may be incomplete');
+  }
+  
+  // 3. Consistency Score (0-25 points)
+  const consistencyChecks = this.checkExtractionConsistency(extractedSessions);
+  validation.scores.consistencyScore = consistencyChecks.score;
+  validation.warnings.push(...consistencyChecks.warnings);
+  
+  // 4. Completeness Score (0-25 points)
+  const completenessChecks = this.checkExtractionCompleteness(extractedSessions, structureAnalysis);
+  validation.scores.completenessScore = completenessChecks.score;
+  validation.warnings.push(...completenessChecks.warnings);
+  
+  // Calculate overall confidence
+  validation.overallConfidence = Object.values(validation.scores).reduce((sum, score) => sum + score, 0) / 100;
+  
+  // Validate individual sessions
+  extractedSessions.forEach(week => {
+    week.dailySessions.forEach(session => {
+      const sessionValidation = this.validateSession(session);
+      validation.sessionValidation.push({
+        sessionId: session.id,
+        ...sessionValidation
+      });
+      
+      // Add session confidence
+      session.extractionConfidence = sessionValidation.confidence;
+      session.extractionWarnings = sessionValidation.warnings;
+    });
+  });
+  
+  return validation;
+}
+
+checkExtractionConsistency(sessions) {
+  const warnings = [];
+  let score = 25;
+  
+  // Check week numbering consistency
+  const weekNumbers = sessions.map(s => s.weekNumber).sort((a, b) => a - b);
+  for (let i = 1; i < weekNumbers.length; i++) {
+    if (weekNumbers[i] - weekNumbers[i-1] > 1) {
+      warnings.push(`Gap in week numbering: Week ${weekNumbers[i-1]} to ${weekNumbers[i]}`);
+      score -= 3;
+    }
+  }
+  
+  // Check session count consistency
+  const sessionCounts = sessions.map(s => s.dailySessions.length);
+  const avgCount = sessionCounts.reduce((sum, c) => sum + c, 0) / sessionCounts.length;
+  const variance = sessionCounts.some(c => Math.abs(c - avgCount) > 2);
+  
+  if (variance) {
+    warnings.push('Inconsistent session counts across weeks');
+    score -= 5;
+  }
+  
+  // Check duration consistency
+  const durations = sessions.flatMap(week => 
+    week.dailySessions.map(s => s.duration)
+  ).filter(d => d > 0);
+  
+  if (durations.length > 0) {
+    const avgDuration = durations.reduce((sum, d) => sum + d, 0) / durations.length;
+    const hasOutliers = durations.some(d => Math.abs(d - avgDuration) > avgDuration * 0.5);
+    
+    if (hasOutliers) {
+      warnings.push('Significant variation in session durations - verify extracted times');
+      score -= 3;
+    }
+  }
+  
+  return { score: Math.max(0, score), warnings };
+}
+
+checkExtractionCompleteness(sessions, structureAnalysis) {
+  const warnings = [];
+  let score = 25;
+  
+  // Check if we extracted expected number of weeks
+  if (structureAnalysis.weekStructure.totalWeeks > 0) {
+    const expectedWeeks = structureAnalysis.weekStructure.totalWeeks;
+    const extractedWeeks = sessions.length;
+    
+    if (extractedWeeks < expectedWeeks * 0.8) {
+      warnings.push(`Extracted ${extractedWeeks} weeks but document suggests ${expectedWeeks} weeks`);
+      score -= 10;
+    }
+  }
+  
+  // Check for missing critical fields
+  let missingFieldCount = 0;
+  sessions.forEach(week => {
+    week.dailySessions.forEach(session => {
+      if (!session.duration || session.duration <= 0) missingFieldCount++;
+      if (!session.activities || session.activities.length === 0) missingFieldCount++;
+      if (!session.focus || session.focus.length === 0) missingFieldCount++;
+    });
+  });
+  
+  if (missingFieldCount > sessions.length * 2) {
+    warnings.push('Many sessions missing critical fields (duration, activities, focus)');
+    score -= 8;
+  }
+  
+  return { score: Math.max(0, score), warnings };
+}
+
+validateSession(session) {
+  const warnings = [];
+  let confidence = 1.0;
+  
+  // Check duration
+  if (!session.duration || session.duration <= 0) {
+    warnings.push('Missing or invalid duration');
+    confidence -= 0.15;
+  } else if (session.duration < 30 || session.duration > 180) {
+    warnings.push('Unusual session duration: ' + session.duration + ' minutes');
+    confidence -= 0.05;
+  }
+  
+  // Check content
+  if (!session.rawContent || session.rawContent.length < 50) {
+    warnings.push('Limited content extracted');
+    confidence -= 0.15;
+  }
+  
+  // Check activities
+  if (!session.activities || session.activities.length === 0) {
+    warnings.push('No activities extracted');
+    confidence -= 0.10;
+  }
+  
+  // Check focus areas
+  if (!session.focus || session.focus.length === 0) {
+    warnings.push('No focus areas identified');
+    confidence -= 0.10;
+  }
+  
+  return {
+    confidence: Math.max(0.3, confidence),
+    warnings,
+    isValid: confidence >= 0.6
+  };
+}
+
 
 // NEW: Extraction for highly structured documents
 extractFromHighlyStructuredDocument(text, structureAnalysis, academyInfo) {
@@ -202,6 +772,66 @@ splitTextByWeeks(text, weekStructure) {
   }
   
   return weekSections;
+}
+
+// Week Boundary Detection
+// Add this NEW method to improve week boundary detection
+detectWeekBoundaries(text) {
+  const lines = text.split('\n');
+  const boundaries = [];
+  let contentDensity = [];
+  
+  // Calculate content density per line (words per line)
+  lines.forEach((line, index) => {
+    const wordCount = line.trim().split(/\s+/).filter(w => w.length > 0).length;
+    contentDensity.push({
+      index: index,
+      wordCount: wordCount,
+      line: line,
+      isEmpty: wordCount === 0
+    });
+  });
+  
+  // Find natural breaks (low density areas after high density)
+  for (let i = 5; i < contentDensity.length - 5; i++) {
+    const prevAvg = this.calculateAverageDensity(contentDensity, i - 5, i);
+    const currentDensity = contentDensity[i].wordCount;
+    const nextAvg = this.calculateAverageDensity(contentDensity, i + 1, i + 6);
+    
+    // A boundary is likely if:
+    // 1. Current line is empty or very short
+    // 2. Previous section had content
+    // 3. Next section has content
+    if (currentDensity < 3 && prevAvg > 5 && nextAvg > 5) {
+      boundaries.push({
+        lineIndex: i,
+        type: 'natural_break',
+        confidence: 0.7
+      });
+    }
+    
+    // Check for explicit week markers
+    const weekMatch = this.fuzzyMatchWeek(lines[i]);
+    if (weekMatch.matched) {
+      boundaries.push({
+        lineIndex: i,
+        type: 'week_marker',
+        weekNumber: weekMatch.weekNumber,
+        confidence: 0.95
+      });
+    }
+  }
+  
+  return boundaries;
+}
+
+// Add this helper method right after
+calculateAverageDensity(contentDensity, startIdx, endIdx) {
+  const slice = contentDensity.slice(startIdx, endIdx);
+  if (slice.length === 0) return 0;
+  
+  const sum = slice.reduce((total, item) => total + item.wordCount, 0);
+  return sum / slice.length;
 }
 
 extractDailySessionsFromWeekSection(weekSection, weekNumber, academyInfo, durationAnalysis) {
@@ -1533,21 +2163,198 @@ extractEquipment(content) {
   return equipment.length > 0 ? equipment : ['basic training equipment'];
 }
 
+// Add after the extractEquipment method
+extractEquipmentAdvanced(content, sport) {
+  const equipmentFound = new Set();
+  let textContent;
+  
+  if (Array.isArray(content)) {
+    textContent = content.join(' ').toLowerCase();
+  } else {
+    textContent = content.toLowerCase();
+  }
+  
+  // Get sport-specific equipment from AIService
+  const sportData = AIService.sportsKnowledge[sport] || AIService.sportsKnowledge.general;
+  
+  // Check all equipment categories
+  const allEquipment = [
+    ...(sportData.equipment.essential || []),
+    ...(sportData.equipment.recommended || []),
+    ...(sportData.equipment.advanced || [])
+  ];
+  
+  allEquipment.forEach(item => {
+    const itemLower = item.toLowerCase();
+    if (textContent.includes(itemLower)) {
+      equipmentFound.add(item);
+    }
+    
+    // Check for variations and synonyms
+    const variations = this.getEquipmentVariations(item);
+    variations.forEach(variation => {
+      if (textContent.includes(variation.toLowerCase())) {
+        equipmentFound.add(item);
+      }
+    });
+  });
+  
+  return Array.from(equipmentFound);
+}
+
+// Add after existing extractEquipment method
+extractSportSpecificEquipment(text, sport) {
+  const equipmentFound = [];
+  const textLower = text.toLowerCase();
+  
+  // Get comprehensive equipment list from AIService
+  const sportData = AIService.sportsKnowledge[sport] || AIService.sportsKnowledge.general;
+  
+  // Check essential equipment first
+  sportData.equipment.essential.forEach(item => {
+    if (textLower.includes(item.toLowerCase())) {
+      equipmentFound.push({ item, category: 'essential', priority: 'high' });
+    }
+  });
+  
+  // Check recommended equipment
+  sportData.equipment.recommended.forEach(item => {
+    if (textLower.includes(item.toLowerCase())) {
+      equipmentFound.push({ item, category: 'recommended', priority: 'medium' });
+    }
+  });
+  
+  // Check advanced equipment
+  sportData.equipment.advanced.forEach(item => {
+    if (textLower.includes(item.toLowerCase())) {
+      equipmentFound.push({ item, category: 'advanced', priority: 'low' });
+    }
+  });
+  
+  return equipmentFound;
+}
+
+getEquipmentVariations(equipment) {
+  const variationsMap = {
+    'soccer balls': ['footballs', 'soccer ball', 'football'],
+    'cones': ['markers', 'pylons', 'disc cones'],
+    'goals': ['posts', 'goalposts', 'nets'],
+    'bibs': ['pinnies', 'vests', 'scrimmage vests'],
+    'agility ladder': ['speed ladder', 'coordination ladder'],
+    'basketballs': ['basketball', 'ball'],
+    'hoops': ['baskets', 'rims'],
+    'tennis balls': ['tennis ball', 'ball'],
+    'rackets': ['racquet', 'tennis racket']
+  };
+  
+  return variationsMap[equipment.toLowerCase()] || [equipment];
+}
+
   extractSessionFocus(content) {
     return this.extractWeekFocus(content);
   }
 
   // Pattern recognition helpers
-  isActivity(line) {
-    const activityPatterns = [
-      /^\d+\./,  // Numbered list
-      /^[A-Z][a-z].*:/, // Title with colon
-      /drill|exercise|activity|practice/i,
-      /warm.*up|cool.*down/i
-    ];
-    
-    return activityPatterns.some(pattern => pattern.test(line.trim()));
+// REPLACE the entire isActivity method with this enhanced version:
+isActivity(line) {
+  if (!line || line.length < 5) return false;
+  
+  const lineLower = line.toLowerCase().trim();
+  
+  // Check basic patterns first
+  const basicPatterns = [
+    /^\d+\./,                    // Numbered list
+    /^[A-Z][a-z].*:/,           // Title with colon
+    /^\-\s/,                     // Dash list
+    /^•\s/,                      // Bullet point
+    /^[a-z]\)/                   // Lettered list: a), b)
+  ];
+  
+  if (basicPatterns.some(pattern => pattern.test(line))) {
+    return true;
   }
+  
+  // Check against activity taxonomy
+  for (const [category, config] of Object.entries(this.activityTaxonomy)) {
+    // Check keywords
+    if (config.keywords.some(keyword => lineLower.includes(keyword))) {
+      return true;
+    }
+    
+    // Check synonyms (multi-language support)
+    if (config.synonyms && config.synonyms.some(syn => lineLower.includes(syn))) {
+      return true;
+    }
+    
+    // Check known activities
+    if (config.activities && config.activities.some(activity => 
+      lineLower.includes(activity.toLowerCase())
+    )) {
+      return true;
+    }
+  }
+  
+  // Check for time indicators (activities often have durations)
+  if (/\d+\s*(?:min|minutes?|hrs?|hours?)/.test(lineLower)) {
+    return true;
+  }
+  
+  // Check for action verbs common in activities
+  const actionVerbs = ['perform', 'execute', 'practice', 'run', 'complete', 'focus on', 'work on'];
+  if (actionVerbs.some(verb => lineLower.includes(verb))) {
+    return true;
+  }
+  
+  return false;
+}
+
+//Add activity classification confidence scoring
+  // Add this NEW method after isActivity
+classifyActivity(line) {
+  const lineLower = line.toLowerCase().trim();
+  let bestCategory = 'general';
+  let bestScore = 0;
+  let confidence = 0;
+  
+  // Score against each category
+  for (const [category, config] of Object.entries(this.activityTaxonomy)) {
+    let score = 0;
+    
+    // Check keywords (weight: 3)
+    score += config.keywords.filter(keyword => 
+      lineLower.includes(keyword)
+    ).length * 3;
+    
+    // Check synonyms (weight: 2)
+    if (config.synonyms) {
+      score += config.synonyms.filter(syn => 
+        lineLower.includes(syn)
+      ).length * 2;
+    }
+    
+    // Check activities (weight: 4)
+    if (config.activities) {
+      score += config.activities.filter(activity => 
+        lineLower.includes(activity.toLowerCase())
+      ).length * 4;
+    }
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestCategory = category;
+    }
+  }
+  
+  // Calculate confidence (0-1 scale)
+  confidence = Math.min(bestScore / 10, 1.0);
+  
+  return {
+    category: bestCategory,
+    confidence: confidence,
+    score: bestScore,
+    line: line
+  };
+}
 
   isDrill(line) {
     return line.toLowerCase().includes('drill') || 

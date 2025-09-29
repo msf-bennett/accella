@@ -79,6 +79,14 @@ class DocumentProcessor {
     this.initialized = false;
     this.supportedFormats = PlatformUtils.getSupportedFormats();
     this.fileSizeLimit = PlatformUtils.getFileSizeLimit();
+    // Add Pattern Learning Storage
+    this.patternLibrary = {
+      successful: [],
+      failed: [],
+      lastUpdated: null
+    };
+    this.learningEnabled = true;
+
     this.initializationPromise = null;
     
     // Start initialization immediately but don't block constructor
@@ -99,6 +107,7 @@ class DocumentProcessor {
 
     try {
       await initializePlatformModules();
+      await this.loadPatternLibrary();
       this.initialized = true;
       
       PlatformUtils.logDebugInfo('DocumentProcessor initialized', {
@@ -218,7 +227,7 @@ async processTrainingPlan(documentId, options = {}) {
     
     // Use AI-enhanced analysis to create training plan
     console.log('Analyzing document with AI enhancement...');
-    const trainingPlan = await this.analyzeDocumentWithAI(text, document, options);
+    trainingPlan.structureAnalysis = await this.analyzeDocumentStructureIntelligently(text, document);
     
     // Save the training plan
     console.log('Saving training plan...');
@@ -769,6 +778,38 @@ async extractAndStoreSessionsFromPlan(trainingPlan) {
     console.error('Session extraction failed:', error);
     throw PlatformUtils.handlePlatformError(error, 'Session Extraction and Storage');
   }
+}
+
+// Add after existing extractEquipment method
+extractSportSpecificEquipment(text, sport) {
+  const equipmentFound = [];
+  const textLower = text.toLowerCase();
+  
+  // Get comprehensive equipment list from AIService
+  const sportData = AIService.sportsKnowledge[sport] || AIService.sportsKnowledge.general;
+  
+  // Check essential equipment first
+  sportData.equipment.essential.forEach(item => {
+    if (textLower.includes(item.toLowerCase())) {
+      equipmentFound.push({ item, category: 'essential', priority: 'high' });
+    }
+  });
+  
+  // Check recommended equipment
+  sportData.equipment.recommended.forEach(item => {
+    if (textLower.includes(item.toLowerCase())) {
+      equipmentFound.push({ item, category: 'recommended', priority: 'medium' });
+    }
+  });
+  
+  // Check advanced equipment
+  sportData.equipment.advanced.forEach(item => {
+    if (textLower.includes(item.toLowerCase())) {
+      equipmentFound.push({ item, category: 'advanced', priority: 'low' });
+    }
+  });
+  
+  return equipmentFound;
 }
 
 async storeExtractedSessions(sessions) {
@@ -1666,6 +1707,7 @@ async analyzeDocumentStructure(text, document) {
       confidence: 0.8
     };
     
+
     // Use AI enhancement if available
     if (AIService.isReady) {
       try {
@@ -1693,6 +1735,323 @@ async analyzeDocumentStructure(text, document) {
   }
 }
 
+async analyzeDocumentStructureIntelligently(text, document) {
+  try {
+    console.log('DocumentProcessor: Starting intelligent structure analysis');
+    
+    const analysis = {
+      // Week detection
+      weekStructure: this.detectWeekStructure(text),
+      
+      // Day detection within weeks
+      dayStructure: this.detectDayStructure(text),
+      
+      // Session detection
+      sessionStructure: this.detectSessionStructure(text),
+      
+      // Time/duration detection
+      timeStructure: this.detectTimeStructure(text),
+      
+      // Overall organization pattern
+      organizationPattern: null,
+      
+      // Confidence scoring
+      confidence: 0
+    };
+    
+    // Determine organization pattern
+    analysis.organizationPattern = this.determineOrganizationPattern(analysis);
+    
+    // Calculate confidence
+    analysis.confidence = this.calculateStructureConfidence(analysis);
+    
+    console.log('Intelligent structure analysis:', analysis);
+    
+    return analysis;
+  } catch (error) {
+    console.error('Intelligent structure analysis failed:', error);
+    return this.getDefaultStructureAnalysis();
+  }
+}
+
+// Add these helper methods right after:
+
+detectWeekStructure(text) {
+  const weekMarkers = [];
+  const weekPatterns = [
+    /week\s*(\d+)/gi,
+    /w(?:ee)?k\s*(\d+)/gi,
+    /semana\s*(\d+)/gi,
+    /woche\s*(\d+)/gi
+  ];
+  
+  weekPatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const weekNum = parseInt(match[1]);
+      if (weekNum > 0 && weekNum <= 52) {
+        weekMarkers.push({
+          weekNumber: weekNum,
+          position: match.index,
+          text: match[0],
+          context: text.substring(Math.max(0, match.index - 50), Math.min(text.length, match.index + 100))
+        });
+      }
+    }
+  });
+  
+  // Sort by position and remove duplicates
+  const uniqueWeeks = Array.from(new Set(weekMarkers.map(w => w.weekNumber)))
+    .sort((a, b) => a - b);
+  
+  return {
+    totalWeeks: uniqueWeeks.length > 0 ? Math.max(...uniqueWeeks) : 0,
+    detectedWeeks: uniqueWeeks,
+    weekMarkers: weekMarkers,
+    hasWeekStructure: uniqueWeeks.length > 0
+  };
+}
+
+detectDayStructure(text) {
+  const dayMarkers = [];
+  const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  
+  allDays.forEach(day => {
+    const pattern = new RegExp(`\\b${day}\\b`, 'gi');
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      dayMarkers.push({
+        day: day,
+        position: match.index,
+        context: text.substring(Math.max(0, match.index - 50), Math.min(text.length, match.index + 150))
+      });
+    }
+  });
+  
+  const uniqueDays = Array.from(new Set(dayMarkers.map(d => d.day)));
+  
+  return {
+    totalDays: uniqueDays.length,
+    detectedDays: uniqueDays,
+    dayMarkers: dayMarkers,
+    hasDayStructure: uniqueDays.length > 0,
+    dayFrequency: this.calculateDayFrequency(dayMarkers)
+  };
+}
+
+calculateDayFrequency(dayMarkers) {
+  const frequency = {};
+  dayMarkers.forEach(marker => {
+    frequency[marker.day] = (frequency[marker.day] || 0) + 1;
+  });
+  return frequency;
+}
+
+detectSessionStructure(text) {
+  const sessionMarkers = [];
+  const sessionPatterns = [
+    /session\s*(\d+)/gi,
+    /training\s*session/gi,
+    /workout\s*(\d+)/gi,
+    /practice/gi
+  ];
+  
+  sessionPatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      sessionMarkers.push({
+        type: this.identifySessionType(match[0]),
+        position: match.index,
+        text: match[0],
+        context: text.substring(Math.max(0, match.index - 50), Math.min(text.length, match.index + 150))
+      });
+    }
+  });
+  
+  return {
+    totalSessions: sessionMarkers.length,
+    sessionMarkers: sessionMarkers,
+    hasSessionStructure: sessionMarkers.length > 0
+  };
+}
+
+detectTimeStructure(text) {
+  const timeMarkers = [];
+  const timePatterns = [
+    /(\d{1,2}):(\d{2})\s*(am|pm)?/gi,
+    /(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi
+  ];
+  
+  timePatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      timeMarkers.push({
+        time: match[0],
+        position: match.index,
+        context: text.substring(Math.max(0, match.index - 30), Math.min(text.length, match.index + 80))
+      });
+    }
+  });
+  
+  return {
+    hasTimeInfo: timeMarkers.length > 0,
+    timeMarkers: timeMarkers,
+    totalTimeReferences: timeMarkers.length
+  };
+}
+
+determineOrganizationPattern(analysis) {
+  const { weekStructure, dayStructure, sessionStructure } = analysis;
+  
+  if (weekStructure.hasWeekStructure && dayStructure.hasDayStructure) {
+    return 'weekly_with_days';
+  } else if (weekStructure.hasWeekStructure) {
+    return 'weekly_only';
+  } else if (dayStructure.hasDayStructure) {
+    return 'daily_only';
+  } else if (sessionStructure.hasSessionStructure) {
+    return 'session_based';
+  } else {
+    return 'unstructured';
+  }
+}
+
+calculateStructureConfidence(analysis) {
+  let confidence = 0;
+  
+  if (analysis.weekStructure.hasWeekStructure) confidence += 0.3;
+  if (analysis.dayStructure.hasDayStructure) confidence += 0.25;
+  if (analysis.sessionStructure.hasSessionStructure) confidence += 0.25;
+  if (analysis.timeStructure.hasTimeInfo) confidence += 0.2;
+  
+  return Math.min(confidence, 1.0);
+}
+
+//Add Pattern Learning Methods
+async saveSuccessfulPattern(document, extractionResult) {
+  if (!this.learningEnabled) return;
+  
+  try {
+    const pattern = {
+      id: `pattern_${Date.now()}`,
+      documentType: document.type,
+      structureLevel: extractionResult.structureAnalysis?.organizationLevel?.level,
+      weekCount: extractionResult.totalWeeks,
+      sessionCount: extractionResult.totalSessions,
+      successIndicators: {
+        hasWeekHeaders: extractionResult.structureAnalysis?.weekStructure?.totalWeeks > 0,
+        hasDayStructure: extractionResult.structureAnalysis?.dayStructure?.totalDays > 0,
+        hasSessionStructure: extractionResult.structureAnalysis?.sessionStructure?.hasStructuredSessions
+      },
+      textPatterns: this.extractTextPatterns(document, extractionResult),
+      timestamp: new Date().toISOString(),
+      confidence: extractionResult.confidence || 0.8
+    };
+    
+    this.patternLibrary.successful.push(pattern);
+    
+    // Keep only last 50 patterns
+    if (this.patternLibrary.successful.length > 50) {
+      this.patternLibrary.successful = this.patternLibrary.successful.slice(-50);
+    }
+    
+    this.patternLibrary.lastUpdated = new Date().toISOString();
+    await this.savePatternLibrary();
+    
+    console.log('DocumentProcessor: Successful pattern saved:', pattern.id);
+    
+  } catch (error) {
+    console.warn('DocumentProcessor: Could not save pattern:', error.message);
+  }
+}
+
+extractTextPatterns(document, extractionResult) {
+  const patterns = {
+    weekHeaderFormats: [],
+    dayPatterns: [],
+    durationFormats: [],
+    structureMarkers: []
+  };
+  
+  // Extract from successful extraction
+  if (extractionResult.structureAnalysis) {
+    const { weekStructure, dayStructure, durationAnalysis } = extractionResult.structureAnalysis;
+    
+    if (weekStructure.weekTitles) {
+      patterns.weekHeaderFormats = weekStructure.weekTitles.map(w => w.title);
+    }
+    
+    if (dayStructure.identifiedDays) {
+      patterns.dayPatterns = dayStructure.identifiedDays;
+    }
+    
+    if (durationAnalysis.foundDurations) {
+      patterns.durationFormats = durationAnalysis.foundDurations.map(d => d.context);
+    }
+  }
+  
+  return patterns;
+}
+
+async loadPatternLibrary() {
+  try {
+    const stored = await AsyncStorage.getItem('document_pattern_library');
+    if (stored) {
+      this.patternLibrary = JSON.parse(stored);
+      console.log('DocumentProcessor: Pattern library loaded:', this.patternLibrary.successful.length, 'patterns');
+    }
+  } catch (error) {
+    console.warn('DocumentProcessor: Could not load pattern library:', error.message);
+  }
+}
+
+async savePatternLibrary() {
+  try {
+    await AsyncStorage.setItem('document_pattern_library', JSON.stringify(this.patternLibrary));
+  } catch (error) {
+    console.warn('DocumentProcessor: Could not save pattern library:', error.message);
+  }
+}
+
+async applyLearnedPatterns(text, document) {
+  if (this.patternLibrary.successful.length === 0) {
+    return null;
+  }
+  
+  // Find most relevant patterns based on document type and content similarity
+  const relevantPatterns = this.patternLibrary.successful
+    .filter(p => p.documentType === document.type)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 5);
+  
+  if (relevantPatterns.length === 0) {
+    return null;
+  }
+  
+  console.log('DocumentProcessor: Applying', relevantPatterns.length, 'learned patterns');
+  
+  // Use learned patterns to enhance extraction
+  const hints = {
+    weekFormats: [...new Set(relevantPatterns.flatMap(p => p.textPatterns.weekHeaderFormats))],
+    dayFormats: [...new Set(relevantPatterns.flatMap(p => p.textPatterns.dayPatterns))],
+    durationFormats: [...new Set(relevantPatterns.flatMap(p => p.textPatterns.durationFormats))],
+    expectedStructure: this.inferStructureFromPatterns(relevantPatterns)
+  };
+  
+  return hints;
+}
+
+inferStructureFromPatterns(patterns) {
+  const avgWeeks = patterns.reduce((sum, p) => sum + p.weekCount, 0) / patterns.length;
+  const avgSessions = patterns.reduce((sum, p) => sum + p.sessionCount, 0) / patterns.length;
+  
+  return {
+    expectedWeeks: Math.round(avgWeeks),
+    expectedSessions: Math.round(avgSessions),
+    likelyStructureLevel: patterns[0]?.structureLevel || 'moderately_structured'
+  };
+}
+
 // Add helper methods for structure analysis
 identifyDocumentType(text) {
   const lowerText = text.toLowerCase();
@@ -1712,11 +2071,16 @@ identifyDocumentType(text) {
 
 analyzeWeekStructure(text) {
   const weekPatterns = [
-    /week\s*(\d+)/gi,
-    /training\s*week\s*(\d+)/gi,
-    /phase\s*(\d+)/gi,
-    /w(\d+)/gi
-  ];
+  /w(?:ee)?k\s*(\d+)/gi,              // Wk 1, Week 1, W 1
+  /training\s*week\s*(\d+)/gi,        // Training Week 1
+  /phase\s*(\d+)/gi,                  // Phase 1
+  /cycle\s*(\d+)/gi,                  // Cycle 1
+  /block\s*(\d+)/gi,                  // Block 1
+  /semana\s*(\d+)/gi,                 // Spanish
+  /woche\s*(\d+)/gi,                  // German
+  /týden\s*(\d+)/gi,                  // Czech
+  /settimana\s*(\d+)/gi               // Italian
+];
   
   const weeks = new Set();
   let weekTitles = [];
@@ -1819,10 +2183,26 @@ analyzeSessionStructure(text) {
 
 analyzeDurations(text) {
   const durationPatterns = [
-    /(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi,
-    /(\d+)\s*-\s*(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi,
-    /duration[:\s]*(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi
-  ];
+  // Standard formats
+  /(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi,
+  /(\d+)\s*-\s*(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi,
+  /duration[:\s]*(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi,
+  
+  // Decimal hours: "1.5 hours"
+  /(\d+\.?\d*)\s*hours?/gi,
+  
+  // Written format: "ninety minutes"
+  /(thirty|forty|forty-five|fifty|sixty|seventy|eighty|ninety|hundred|one hundred twenty)\s*minutes?/gi,
+  
+  // Session duration context
+  /session\s*(?:lasts?|duration|time)[:\s]*(\d+)\s*(min|minutes?|hrs?|hours?)/gi,
+  
+  // Time ranges with context: "from 60 to 90 minutes"
+  /from\s*(\d+)\s*to\s*(\d+)\s*(minutes?|hours?)/gi,
+  
+  // Approximate: "about 90 minutes", "approximately 1 hour"
+  /(?:about|approximately|around|roughly)\s*(\d+\.?\d*)\s*(minutes?|hours?)/gi
+];
   
   const durations = [];
   
@@ -1848,6 +2228,41 @@ analyzeDurations(text) {
     durationRange: this.getDurationRange(durations),
     hasDurationInfo: durations.length > 0
   };
+}
+
+//Add a duration parsing helper method
+// Add this NEW method
+parseDurationFromContext(text) {
+  const textLower = text.toLowerCase();
+  
+  // Convert written numbers to digits
+  const writtenNumbers = {
+    'thirty': 30, 'forty': 40, 'forty-five': 45, 'fifty': 50,
+    'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90,
+    'hundred': 100, 'one hundred twenty': 120
+  };
+  
+  // Check for written numbers first
+  for (const [written, number] of Object.entries(writtenNumbers)) {
+    if (textLower.includes(written + ' minute')) {
+      return number;
+    }
+  }
+  
+  // Extract decimal hours and convert: "1.5 hours" = 90 minutes
+  const decimalHours = textLower.match(/(\d+\.?\d*)\s*hours?/i);
+  if (decimalHours) {
+    const hours = parseFloat(decimalHours[1]);
+    return Math.round(hours * 60);
+  }
+  
+  // Extract standard minutes
+  const minutes = textLower.match(/(\d+)\s*(?:min|minutes?)/i);
+  if (minutes) {
+    return parseInt(minutes[1]);
+  }
+  
+  return null;
 }
 
 analyzeSchedulePattern(text) {

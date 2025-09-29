@@ -55,31 +55,267 @@ class AIService {
     };
     
     this.sportsKnowledge = {
-      soccer: {
-        keySkills: ['ball control', 'passing', 'shooting', 'defending', 'dribbling'],
-        ageProgression: {
-          '4-6': { focus: 'fun', duration: 30, complexity: 'very_simple' },
-          '7-9': { focus: 'basic_skills', duration: 45, complexity: 'simple' },
-          '10-12': { focus: 'technique', duration: 60, complexity: 'moderate' },
-          '13-15': { focus: 'tactics', duration: 75, complexity: 'advanced' },
-          '16+': { focus: 'performance', duration: 90, complexity: 'professional' }
-        },
-        equipment: ['balls', 'cones', 'goals', 'bibs', 'ladders'],
-        safetyConsiderations: ['proper warm-up', 'hydration', 'age-appropriate contact']
-      },
-      basketball: {
-        keySkills: ['dribbling', 'shooting', 'passing', 'defense', 'rebounding'],
-        ageProgression: {
-          '6-8': { focus: 'coordination', duration: 30, complexity: 'basic' },
-          '9-11': { focus: 'fundamentals', duration: 45, complexity: 'simple' },
-          '12-14': { focus: 'skills', duration: 60, complexity: 'moderate' },
-          '15-17': { focus: 'strategy', duration: 75, complexity: 'advanced' },
-          '18+': { focus: 'competition', duration: 90, complexity: 'elite' }
-        },
-        equipment: ['basketballs', 'cones', 'hoops', 'ladders'],
-        safetyConsiderations: ['ankle support', 'proper footwork', 'collision awareness']
-      }
-    };
+  soccer: {
+    keySkills: ['ball control', 'passing', 'shooting', 'defending', 'dribbling', 'heading', 'tackling', 'positioning'],
+    ageProgression: {
+      '4-6': { focus: 'fun', duration: 30, complexity: 'very_simple' },
+      '7-9': { focus: 'basic_skills', duration: 45, complexity: 'simple' },
+      '10-12': { focus: 'technique', duration: 60, complexity: 'moderate' },
+      '13-15': { focus: 'tactics', duration: 75, complexity: 'advanced' },
+      '16+': { focus: 'performance', duration: 90, complexity: 'professional' }
+    },
+    equipment: {
+      essential: ['soccer balls', 'cones', 'goals', 'bibs/pinnies'],
+      recommended: ['agility ladder', 'hurdles', 'training vests', 'corner flags'],
+      advanced: ['rebounders', 'speed parachute', 'resistance bands', 'GPS trackers']
+    },
+    drills: {
+      beginner: [
+        { name: 'Dribbling through cones', focus: 'ball control', participants: '1-20', duration: 10 },
+        { name: 'Pass and move', focus: 'passing', participants: '2-20', duration: 15 },
+        { name: 'Shooting at target', focus: 'shooting', participants: '1-20', duration: 10 },
+        { name: 'Red light green light with ball', focus: 'control', participants: '5-20', duration: 10 }
+      ],
+      intermediate: [
+        { name: 'Triangle passing drill', focus: 'passing', participants: '3-15', duration: 15 },
+        { name: 'One-touch shooting', focus: 'finishing', participants: '2-12', duration: 15 },
+        { name: 'Zigzag dribbling', focus: 'agility', participants: '1-20', duration: 12 },
+        { name: '1v1 defending', focus: 'defense', participants: '2-20', duration: 15 },
+        { name: 'Wall passing combinations', focus: 'teamwork', participants: '3-12', duration: 15 }
+      ],
+      advanced: [
+        { name: 'Possession game (Rondo)', focus: 'technique', participants: '6-12', duration: 20 },
+        { name: 'Attacking 3v2', focus: 'tactics', participants: '5-10', duration: 20 },
+        { name: 'Cross and finish', focus: 'finishing', participants: '4-12', duration: 20 },
+        { name: 'High-pressure defending', focus: 'pressing', participants: '6-16', duration: 20 },
+        { name: 'Counter-attack scenarios', focus: 'transition', participants: '8-18', duration: 20 }
+      ]
+    },
+    safetyConsiderations: ['proper warm-up', 'hydration', 'age-appropriate contact', 'shin guards required', 'safe heading technique'],
+    progressionMarkers: ['consistent first touch', 'accurate passing', 'tactical awareness', 'decision-making speed']
+  },
+  basketball: {
+    keySkills: ['dribbling', 'shooting', 'passing', 'defense', 'rebounding', 'footwork', 'court vision'],
+    ageProgression: {
+      '6-8': { focus: 'coordination', duration: 30, complexity: 'basic' },
+      '9-11': { focus: 'fundamentals', duration: 45, complexity: 'simple' },
+      '12-14': { focus: 'skills', duration: 60, complexity: 'moderate' },
+      '15-17': { focus: 'strategy', duration: 75, complexity: 'advanced' },
+      '18+': { focus: 'competition', duration: 90, complexity: 'elite' }
+    },
+    equipment: {
+      essential: ['basketballs', 'cones', 'hoops'],
+      recommended: ['agility ladder', 'resistance bands', 'jump rope', 'shooting machine'],
+      advanced: ['weighted vests', 'reaction balls', 'dribble goggles', 'shooting targets']
+    },
+    drills: {
+      beginner: [
+        { name: 'Stationary dribbling', focus: 'ball handling', participants: '1-20', duration: 10 },
+        { name: 'Layup lines', focus: 'finishing', participants: '4-20', duration: 15 },
+        { name: 'Chest pass partner drill', focus: 'passing', participants: '2-20', duration: 10 },
+        { name: 'Form shooting close range', focus: 'shooting', participants: '1-20', duration: 15 }
+      ],
+      intermediate: [
+        { name: 'Figure 8 dribbling', focus: 'control', participants: '1-20', duration: 12 },
+        { name: 'Mikan drill', focus: 'finishing', participants: '1-10', duration: 15 },
+        { name: '3-man weave', focus: 'passing', participants: '3-15', duration: 15 },
+        { name: 'Shell drill defense', focus: 'positioning', participants: '4-12', duration: 20 },
+        { name: 'Spot shooting 5 spots', focus: 'shooting', participants: '1-15', duration: 15 }
+      ],
+      advanced: [
+        { name: 'Full court 2v1 fast break', focus: 'transition', participants: '3-15', duration: 20 },
+        { name: 'Closeout drill 1v1', focus: 'defense', participants: '2-12', duration: 20 },
+        { name: 'Pick and roll reads', focus: 'tactics', participants: '2-10', duration: 20 },
+        { name: 'Competitive shooting - around world', focus: 'shooting', participants: '1-8', duration: 15 },
+        { name: 'Full court press break', focus: 'strategy', participants: '5-10', duration: 20 }
+      ]
+    },
+    safetyConsiderations: ['ankle support', 'proper footwork', 'collision awareness', 'falling technique', 'hydration breaks'],
+    progressionMarkers: ['consistent free throw', 'proper shooting form', 'defensive stance', 'court awareness']
+  },
+  tennis: {
+    keySkills: ['forehand', 'backhand', 'serve', 'volley', 'footwork', 'strategy', 'court positioning'],
+    ageProgression: {
+      '5-7': { focus: 'coordination', duration: 30, complexity: 'very_simple' },
+      '8-10': { focus: 'basic_strokes', duration: 45, complexity: 'simple' },
+      '11-14': { focus: 'consistency', duration: 60, complexity: 'moderate' },
+      '15-17': { focus: 'tactics', duration: 75, complexity: 'advanced' },
+      '18+': { focus: 'match_play', duration: 90, complexity: 'competitive' }
+    },
+    equipment: {
+      essential: ['tennis balls', 'rackets', 'net', 'court'],
+      recommended: ['ball machine', 'cones', 'agility ladder', 'training targets'],
+      advanced: ['video analysis', 'speed radar', 'resistance bands', 'balance equipment']
+    },
+    drills: {
+      beginner: [
+        { name: 'Drop and hit forehand', focus: 'stroke', participants: '1-8', duration: 15 },
+        { name: 'Rally to cone targets', focus: 'accuracy', participants: '2-8', duration: 15 },
+        { name: 'Serve toss practice', focus: 'serve', participants: '1-12', duration: 10 },
+        { name: 'Mini tennis crosscourt', focus: 'control', participants: '2-12', duration: 15 }
+      ],
+      intermediate: [
+        { name: 'Crosscourt rallies 10+', focus: 'consistency', participants: '2-8', duration: 20 },
+        { name: 'Approach shot and volley', focus: 'net play', participants: '2-8', duration: 15 },
+        { name: 'Serve and return drill', focus: 'serve', participants: '2-10', duration: 20 },
+        { name: 'Spanish drill (figure 8)', focus: 'movement', participants: '2-4', duration: 20 }
+      ],
+      advanced: [
+        { name: 'Point construction patterns', focus: 'tactics', participants: '2-4', duration: 25 },
+        { name: 'Serve + 1 scenarios', focus: 'strategy', participants: '2-6', duration: 25 },
+        { name: 'Competitive points with themes', focus: 'match play', participants: '2-4', duration: 30 },
+        { name: 'Pressure serve practice', focus: 'mental', participants: '1-6', duration: 20 }
+      ]
+    },
+    safetyConsiderations: ['proper grip', 'warm-up rotator cuff', 'court surface checks', 'sun protection', 'hydration in heat'],
+    progressionMarkers: ['consistent serve toss', 'rally maintenance', 'tactical awareness', 'mental toughness']
+  },
+  volleyball: {
+    keySkills: ['serve', 'pass', 'set', 'spike', 'block', 'dig', 'court positioning'],
+    ageProgression: {
+      '8-10': { focus: 'fundamentals', duration: 45, complexity: 'basic' },
+      '11-13': { focus: 'techniques', duration: 60, complexity: 'moderate' },
+      '14-16': { focus: 'tactics', duration: 75, complexity: 'advanced' },
+      '17+': { focus: 'competitive', duration: 90, complexity: 'elite' }
+    },
+    equipment: {
+      essential: ['volleyballs', 'net', 'court markers', 'cones'],
+      recommended: ['volleyball cart', 'training pads', 'resistance bands', 'jump trainer'],
+      advanced: ['blocking sleds', 'spike trainer', 'video analysis', 'jump measurement']
+    },
+    drills: {
+      beginner: [
+        { name: 'Underhand serve to target', focus: 'serving', participants: '1-12', duration: 15 },
+        { name: 'Pass to self and set', focus: 'control', participants: '1-12', duration: 10 },
+        { name: 'Partner passing', focus: 'passing', participants: '2-20', duration: 15 },
+        { name: 'Setting against wall', focus: 'setting', participants: '1-12', duration: 10 }
+      ],
+      intermediate: [
+        { name: 'Pepper drill (pass-set-spike)', focus: 'combination', participants: '2-12', duration: 20 },
+        { name: 'Serve receive formation', focus: 'reception', participants: '6-12', duration: 20 },
+        { name: 'Hitting lines', focus: 'attacking', participants: '3-18', duration: 20 },
+        { name: 'Blocking footwork and timing', focus: 'defense', participants: '2-12', duration: 15 }
+      ],
+      advanced: [
+        { name: '6v6 wash drill', focus: 'transition', participants: '12', duration: 25 },
+        { name: 'Serve receive with attack', focus: 'system', participants: '6-12', duration: 25 },
+        { name: 'Complex blocking scenarios', focus: 'reading', participants: '3-9', duration: 20 },
+        { name: 'Out of system training', focus: 'problem-solving', participants: '6-12', duration: 25 }
+      ]
+    },
+    safetyConsiderations: ['knee pads required', 'proper landing technique', 'net height appropriate', 'court surface safe', 'finger taping'],
+    progressionMarkers: ['consistent platform', 'hand positioning', 'footwork efficiency', 'reading opponent']
+  },
+  swimming: {
+    keySkills: ['freestyle', 'backstroke', 'breaststroke', 'butterfly', 'turns', 'starts', 'breathing'],
+    ageProgression: {
+      '4-6': { focus: 'water_safety', duration: 30, complexity: 'basic' },
+      '7-9': { focus: 'stroke_development', duration: 45, complexity: 'simple' },
+      '10-12': { focus: 'technique', duration: 60, complexity: 'moderate' },
+      '13-15': { focus: 'endurance', duration: 75, complexity: 'advanced' },
+      '16+': { focus: 'competition', duration: 90, complexity: 'elite' }
+    },
+    equipment: {
+      essential: ['kickboards', 'pull buoys', 'lane lines', 'pace clock'],
+      recommended: ['fins', 'paddles', 'snorkel', 'tempo trainer'],
+      advanced: ['drag suit', 'power tower', 'underwater camera', 'lactate monitor']
+    },
+    drills: {
+      beginner: [
+        { name: 'Kickboard freestyle kick', focus: 'kicking', participants: '1-20', duration: 15 },
+        { name: 'Streamline push-off', focus: 'position', participants: '1-20', duration: 10 },
+        { name: 'Bilateral breathing practice', focus: 'breathing', participants: '1-20', duration: 15 },
+        { name: 'Wall flutter kicks', focus: 'legs', participants: '1-20', duration: 10 }
+      ],
+      intermediate: [
+        { name: 'Catch-up drill', focus: 'stroke', participants: '1-20', duration: 20 },
+        { name: 'Descending intervals', focus: 'pacing', participants: '1-20', duration: 25 },
+        { name: 'Turn practice (flip/open)', focus: 'turns', participants: '1-20', duration: 15 },
+        { name: 'Pull with paddles', focus: 'power', participants: '1-20', duration: 20 }
+      ],
+      advanced: [
+        { name: 'Race pace sets', focus: 'speed', participants: '1-20', duration: 30 },
+        { name: 'IM transitions', focus: 'medley', participants: '1-20', duration: 25 },
+        { name: 'Hypoxic training', focus: 'breath_control', participants: '1-20', duration: 20 },
+        { name: 'Broken swims', focus: 'race_simulation', participants: '1-20', duration: 30 }
+      ]
+    },
+    safetyConsiderations: ['lifeguard present', 'proper depth', 'no diving shallow end', 'buddy system', 'rest between sets'],
+    progressionMarkers: ['streamline position', 'bilateral breathing', 'efficient turns', 'pacing awareness']
+  },
+  track: {
+    keySkills: ['sprinting', 'distance running', 'hurdles', 'starts', 'pacing', 'endurance'],
+    ageProgression: {
+      '8-10': { focus: 'running_form', duration: 30, complexity: 'basic' },
+      '11-13': { focus: 'speed_development', duration: 45, complexity: 'moderate' },
+      '14-16': { focus: 'specialization', duration: 60, complexity: 'advanced' },
+      '17+': { focus: 'performance', duration: 75, complexity: 'competitive' }
+    },
+    equipment: {
+      essential: ['running shoes', 'track', 'starting blocks', 'cones'],
+      recommended: ['hurdles', 'resistance bands', 'agility ladder', 'stopwatch'],
+      advanced: ['sprint parachute', 'timing system', 'video analysis', 'altitude simulator']
+    },
+    drills: {
+      beginner: [
+        { name: 'A-skip, B-skip form drills', focus: 'form', participants: '1-30', duration: 15 },
+        { name: 'Acceleration runs 30m', focus: 'speed', participants: '1-30', duration: 20 },
+        { name: 'Easy distance run', focus: 'endurance', participants: '1-30', duration: 25 },
+        { name: 'High knees and butt kicks', focus: 'technique', participants: '1-30', duration: 10 }
+      ],
+      intermediate: [
+        { name: 'Block starts practice', focus: 'starts', participants: '1-20', duration: 20 },
+        { name: 'Tempo runs 75%', focus: 'pacing', participants: '1-30', duration: 30 },
+        { name: 'Hurdle walkovers', focus: 'hurdles', participants: '1-15', duration: 15 },
+        { name: 'Interval training 400m', focus: 'speed_endurance', participants: '1-30', duration: 35 }
+      ],
+      advanced: [
+        { name: 'Flying 60m sprints', focus: 'max_velocity', participants: '1-20', duration: 30 },
+        { name: 'Race simulation with splits', focus: 'strategy', participants: '1-20', duration: 40 },
+        { name: 'Three-step hurdle rhythm', focus: 'hurdles', participants: '1-12', duration: 25 },
+        { name: 'Lactate threshold runs', focus: 'endurance', participants: '1-30', duration: 40 }
+      ]
+    },
+    safetyConsiderations: ['proper warm-up', 'surface conditions', 'appropriate footwear', 'gradual intensity increase', 'cool-down'],
+    progressionMarkers: ['consistent starts', 'stride efficiency', 'race pacing', 'finish technique']
+  },
+  general: {
+    keySkills: ['coordination', 'agility', 'strength', 'flexibility', 'endurance', 'balance'],
+    ageProgression: {
+      'youth': { focus: 'movement', duration: 30, complexity: 'fun' },
+      'teen': { focus: 'fitness', duration: 60, complexity: 'moderate' },
+      'adult': { focus: 'health', duration: 60, complexity: 'varied' },
+      'senior': { focus: 'mobility', duration: 45, complexity: 'gentle' }
+    },
+    equipment: {
+      essential: ['cones', 'markers', 'balls', 'mats'],
+      recommended: ['resistance bands', 'dumbbells', 'agility ladder', 'jump rope'],
+      advanced: ['medicine balls', 'kettlebells', 'TRX', 'battle ropes']
+    },
+    drills: {
+      beginner: [
+        { name: 'Dynamic warm-up routine', focus: 'preparation', participants: '1-30', duration: 10 },
+        { name: 'Bodyweight squats', focus: 'strength', participants: '1-30', duration: 10 },
+        { name: 'Plank holds', focus: 'core', participants: '1-30', duration: 5 },
+        { name: 'Jumping jacks', focus: 'cardio', participants: '1-30', duration: 5 }
+      ],
+      intermediate: [
+        { name: 'Circuit training stations', focus: 'fitness', participants: '5-30', duration: 25 },
+        { name: 'Agility ladder patterns', focus: 'footwork', participants: '1-20', duration: 15 },
+        { name: 'Partner resistance exercises', focus: 'strength', participants: '2-30', duration: 20 },
+        { name: 'Interval cardio', focus: 'conditioning', participants: '1-30', duration: 20 }
+      ],
+      advanced: [
+        { name: 'Complex plyometric routine', focus: 'power', participants: '1-20', duration: 25 },
+        { name: 'Sport-specific conditioning', focus: 'performance', participants: '1-30', duration: 30 },
+        { name: 'Advanced core circuit', focus: 'stability', participants: '1-20', duration: 20 },
+        { name: 'Metabolic conditioning', focus: 'endurance', participants: '1-30', duration: 30 }
+      ]
+    },
+    safetyConsiderations: ['proper form', 'progressive overload', 'rest and recovery', 'injury prevention', 'age-appropriate'],
+    progressionMarkers: ['movement quality', 'consistency', 'strength gains', 'endurance improvement']
+  }
+};
     
     this.offlineCapabilities = {
       planEnhancement: true,
@@ -1885,43 +2121,113 @@ async improveSingleSession(sessionData, userProfile = {}) {
   }
 
 // Add these missing helper methods to your AIService class
-
 generateSportSpecificDrills(sport, ageGroup, duration) {
-  const baseDrills = {
-    soccer: [
-      'Ball control and first touch practice',
-      'Passing accuracy in pairs',
-      'Dribbling through cones',
-      'Shooting technique from various angles',
-      'Defensive positioning and tackling'
-    ],
-    basketball: [
-      'Dribbling with both hands',
-      'Chest and bounce passing',
-      'Free throw shooting technique',
-      'Layup from both sides',
-      'Defensive stance and movement'
-    ],
-    general: [
-      'Agility ladder exercises',
-      'Coordination drills with equipment',
-      'Team-building activities',
-      'Fitness stations rotation',
-      'Stretching and mobility work'
-    ]
-  };
-
-  const drills = baseDrills[sport] || baseDrills.general;
-  const drillDuration = Math.round(duration * 0.1); // Each drill ~10% of session
-
-  return drills.map((drill, index) => ({
-    id: `drill_${index}`,
-    name: drill,
+  // Get comprehensive drill data
+  const sportData = this.sportsKnowledge[sport] || this.sportsKnowledge.general;
+  
+  // Determine skill level based on age group
+  let skillLevel = 'beginner';
+  if (ageGroup.includes('13-15') || ageGroup.includes('teen')) {
+    skillLevel = 'intermediate';
+  } else if (ageGroup.includes('16+') || ageGroup.includes('adult')) {
+    skillLevel = 'advanced';
+  }
+  
+  // Get drills for this skill level
+  const availableDrills = sportData.drills[skillLevel] || sportData.drills.beginner || [];
+  
+  // Calculate time allocation
+  const drillDuration = Math.round(duration * 0.15); // Each drill ~15% of session
+  
+  // Map drills with full detail
+  return availableDrills.map((drill, index) => ({
+    id: `drill_${index}_${Date.now()}`,
+    name: drill.name,
+    focus: drill.focus,
     duration: drillDuration,
-    description: `${drill} - adapted for ${ageGroup} level`,
-    equipment: this.getBasicEquipment(sport),
-    instructions: `Focus on proper technique and safety`
+    participants: drill.participants,
+    description: `${drill.name} - ${drill.focus} focused training adapted for ${ageGroup} level`,
+    equipment: this.getRequiredEquipment(sport, drill.name),
+    instructions: this.generateDrillInstructions(drill, ageGroup),
+    safetyNotes: this.getDrillSafetyNotes(sport, drill.name),
+    variations: this.getDrillVariations(drill, skillLevel),
+    progressionTips: this.getDrillProgression(drill, skillLevel)
   }));
+}
+
+// Add these new helper methods right after generateSportSpecificDrills
+
+getRequiredEquipment(sport, drillName) {
+  const sportData = this.sportsKnowledge[sport];
+  if (!sportData) return ['basic training equipment'];
+  
+  // Return combined essential and recommended equipment
+  const essential = sportData.equipment.essential || [];
+  const recommended = sportData.equipment.recommended?.slice(0, 2) || [];
+  
+  return [...essential, ...recommended];
+}
+
+generateDrillInstructions(drill, ageGroup) {
+  const instructions = [];
+  
+  // Age-appropriate instruction style
+  if (ageGroup.includes('youth') || ageGroup.includes('4-') || ageGroup.includes('7-9')) {
+    instructions.push('Keep it fun and engaging');
+    instructions.push('Use simple language and demonstrations');
+    instructions.push('Encourage effort over perfection');
+  } else if (ageGroup.includes('teen')) {
+    instructions.push('Explain the tactical purpose');
+    instructions.push('Set clear performance goals');
+    instructions.push('Encourage competitive elements');
+  } else {
+    instructions.push('Focus on technical excellence');
+    instructions.push('Emphasize proper form and safety');
+    instructions.push('Monitor intensity and provide feedback');
+  }
+  
+  instructions.push(`Duration: ${drill.duration || '10-15'} minutes`);
+  instructions.push(`Participants: ${drill.participants || '1-20'} players`);
+  
+  return instructions.join(' • ');
+}
+
+getDrillSafetyNotes(sport, drillName) {
+  const sportData = this.sportsKnowledge[sport];
+  if (!sportData) return ['Follow general safety guidelines'];
+  
+  // Return top safety considerations for this sport
+  return sportData.safetyConsiderations.slice(0, 3);
+}
+
+getDrillVariations(drill, skillLevel) {
+  const variations = [];
+  
+  if (skillLevel === 'beginner') {
+    variations.push('Reduce space for better control');
+    variations.push('Slow down pace for learning');
+    variations.push('Add more repetitions with rest');
+  } else if (skillLevel === 'intermediate') {
+    variations.push('Increase space and speed');
+    variations.push('Add decision-making elements');
+    variations.push('Introduce competitive scoring');
+  } else {
+    variations.push('Add pressure and time constraints');
+    variations.push('Combine with tactical scenarios');
+    variations.push('Increase complexity and speed');
+  }
+  
+  return variations;
+}
+
+getDrillProgression(drill, skillLevel) {
+  if (skillLevel === 'beginner') {
+    return 'Master basic form → Add movement → Increase speed → Add opposition';
+  } else if (skillLevel === 'intermediate') {
+    return 'Perfect technique → Add pressure → Increase complexity → Game application';
+  } else {
+    return 'Refine execution → Add variables → Performance optimization → Mastery testing';
+  }
 }
 
 getBasicEquipment(sport) {

@@ -1012,6 +1012,27 @@ const fabConfigs = {
         </Card>
       )}
 
+      {/* Document Structure Analysis */}
+    {plan.structureAnalysis && (
+      <Card style={styles.sectionCard}>
+        <Card.Content>
+          <Text style={[TEXT_STYLES.h3, { marginBottom: SPACING.md }]}>
+            Document Structure
+          </Text>
+          <View style={{ marginBottom: SPACING.sm }}>
+            <Text style={TEXT_STYLES.subtitle2}>Organization: {plan.structureAnalysis.organizationPattern?.replace(/_/g, ' ').toUpperCase()}</Text>
+            <Text style={TEXT_STYLES.body2}>Weeks Detected: {plan.structureAnalysis.weekStructure?.totalWeeks || 0}</Text>
+            <Text style={TEXT_STYLES.body2}>Days Detected: {plan.structureAnalysis.dayStructure?.totalDays || 0}</Text>
+            <Text style={TEXT_STYLES.body2}>Sessions Found: {plan.structureAnalysis.sessionStructure?.totalSessions || 0}</Text>
+            <ProgressBar progress={plan.structureAnalysis.confidence || 0} color={COLORS.primary} style={{ marginTop: SPACING.sm }} />
+            <Text style={[TEXT_STYLES.caption, { marginTop: SPACING.xs }]}>
+              Analysis Confidence: {Math.round((plan.structureAnalysis.confidence || 0) * 100)}%
+            </Text>
+          </View>
+        </Card.Content>
+      </Card>
+    )}
+
       {/* Creator Info - Updated with profile picture */}
       <Card style={styles.sectionCard}>
         <Card.Content>
