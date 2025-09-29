@@ -554,8 +554,12 @@ const showDocumentOptions = (document) => {
 };
 
 const handleDailySessionPress = (dailySession, weekSession) => {
-  // Extract the raw content for this specific day from the document
+  // Extract the raw content for this specific day
   const dayContent = extractDayContent(weekSession, dailySession);
+  
+  // Check if this is a shared session
+  const isSharedSession = dailySession.sessionsForDay?.[0]?.isSharedSession || false;
+  const sharedWith = dailySession.sessionsForDay?.[0]?.sharedWith || [];
   
   navigation.navigate('SessionScheduleScreen', {
     sessionData: {
@@ -565,16 +569,23 @@ const handleDailySessionPress = (dailySession, weekSession) => {
       planTitle: plan.title,
       academyName: dailySession.academyName || plan.title,
       
-      // CRITICAL: Include the full raw content for this day
+      // Include complete raw content
       rawContent: dayContent.rawContent,
       documentContent: dayContent.documentContent,
       
-      // Also include week context
+      // Shared session metadata
+      isSharedSession: isSharedSession,
+      sharedWith: sharedWith,
+      sharedSessionNote: isSharedSession 
+        ? `This session is also used for: ${sharedWith.join(', ')}`
+        : null,
+      
+      // Week context
       weekTitle: weekSession.title,
       weekDescription: weekSession.description,
       weekFocus: weekSession.focus,
       
-      // Original session data
+      // All sessions for this day
       sessionsForDay: dailySession.sessionsForDay || [dailySession]
     },
     planTitle: plan.title,

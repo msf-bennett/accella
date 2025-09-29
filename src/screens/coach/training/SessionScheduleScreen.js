@@ -650,57 +650,85 @@ const SessionScheduleScreen = ({ navigation, route }) => {
     </LinearGradient>
   );
 
-  const renderSessionInfo = () => (
-    <Surface style={styles.sessionInfoCard}>
-      <View style={styles.sessionInfoHeader}>
-        <Avatar.Text
-          size={48}
-          label={academyName.charAt(0)}
-          style={{ backgroundColor: colors.primary }}
-        />
-        <View style={styles.sessionInfoDetails}>
-          <Text style={[textStyles.h3, { marginBottom: spacing.xs }]}>
-            {session.title}
-          </Text>
-          <View style={styles.sessionMetrics}>
-            <View style={styles.metricItem}>
-              <Icon name="schedule" size={16} color={colors.textSecondary} />
-              <Text style={[textStyles.caption, { marginLeft: 4 }]}>
-                {session.time} • {session.duration}min
+    const renderSessionInfo = () => (
+        <Surface style={styles.sessionInfoCard}>
+          <View style={styles.sessionInfoHeader}>
+            <Avatar.Text
+              size={48}
+              label={academyName.charAt(0)}
+              style={{ backgroundColor: colors.primary }}
+            />
+            <View style={styles.sessionInfoDetails}>
+              <Text style={[textStyles.h3, { marginBottom: spacing.xs }]}>
+                {session.title}
               </Text>
-            </View>
-            <View style={styles.metricItem}>
-              <Icon name="location-on" size={16} color={colors.textSecondary} />
-              <Text style={[textStyles.caption, { marginLeft: 4 }]}>
-                {session.location || 'Training Field'}
-              </Text>
+              <View style={styles.sessionMetrics}>
+                <View style={styles.metricItem}>
+                  <Icon name="schedule" size={16} color={colors.textSecondary} />
+                  <Text style={[textStyles.caption, { marginLeft: 4 }]}>
+                    {session.time} • {session.duration}min
+                  </Text>
+                </View>
+                <View style={styles.metricItem}>
+                  <Icon name="location-on" size={16} color={colors.textSecondary} />
+                  <Text style={[textStyles.caption, { marginLeft: 4 }]}>
+                    {session.location || 'Training Field'}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
-        </View>
-      </View>
 
-      <View style={styles.sessionChips}>
-        {session.difficulty && (
-          <Chip
-            style={[styles.chip, { backgroundColor: getDifficultyColor(session.difficulty) + '20' }]}
-            textStyle={{ color: getDifficultyColor(session.difficulty) }}
-          >
-            {session.difficulty}
-          </Chip>
-        )}
-        {session.participants && (
-          <Chip style={styles.chip}>
-            {session.participants} players
-          </Chip>
-        )}
-        {session.focus && session.focus.map((focus, index) => (
-          <Chip key={index} style={styles.chip} mode="outlined">
-            {focus}
-          </Chip>
-        ))}
-      </View>
-    </Surface>
-  );
+          <View style={styles.sessionChips}>
+            {session.difficulty && (
+              <Chip
+                style={[styles.chip, { backgroundColor: getDifficultyColor(session.difficulty) + '20' }]}
+                textStyle={{ color: getDifficultyColor(session.difficulty) }}
+              >
+                {session.difficulty}
+              </Chip>
+            )}
+            {session.participants && (
+              <Chip style={styles.chip}>
+                {session.participants} players
+              </Chip>
+            )}
+            {session.focus && session.focus.map((focus, index) => (
+              <Chip key={index} style={styles.chip} mode="outlined">
+                {focus}
+              </Chip>
+            ))}
+          </View>
+
+          {/* ADD THE SHARED SESSION INDICATOR HERE */}
+          {session.isSharedSession && session.sharedWith?.length > 0 && (
+            <View style={{ 
+              marginTop: spacing.sm, 
+              padding: spacing.sm, 
+              backgroundColor: colors.primary + '20',
+              borderRadius: 8 
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Icon name="repeat" size={16} color={colors.primary} />
+                <Text style={[textStyles.caption, { 
+                  marginLeft: 4, 
+                  color: colors.primary,
+                  fontWeight: '600' 
+                }]}>
+                  Shared Session
+                </Text>
+              </View>
+              <Text style={[textStyles.caption, { 
+                marginTop: 2,
+                color: colors.textSecondary 
+              }]}>
+                Also used for: {session.sharedWith.map(day => day.charAt(0).toUpperCase() + day.slice(1)).join(', ')}
+              </Text>
+            </View>
+          )}
+
+        </Surface>
+      );
 
   const renderTabContent = () => {
     const activeSessionData = showImproved && improvedContent 

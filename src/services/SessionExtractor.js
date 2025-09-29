@@ -714,27 +714,93 @@ groupSessionsByDay(weekContent, daysInWeek) {
   const sessionsByDay = {};
   
   if (daysInWeek.length === 0) {
-    // No specific days found - create default structure
     sessionsByDay['week_overview'] = [weekContent];
     return sessionsByDay;
   }
   
-  // For each day, extract content until next day or end
+  // First, detect if there are shared sessions (e.g., "Monday/Friday" or "Wednesday/Saturday/Sunday")
+  const sharedSessionPattern = /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s*\/\s*|\s*,\s*|\s+and\s+)(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:(?:\s*\/\s*|\s*,\s*|\s+and\s+)(monday|tuesday|wednesday|thursday|friday|saturday|sunday))*/gi;
+  
+  const lines = weekContent.split('\n');
+  const sharedSessions = new Map(); // Map of session content to array of days
+  
+  // Detect shared session markers
+  lines.forEach((line, lineIndex) => {
+    const sharedMatch = line.match(sharedSessionPattern);
+    if (sharedMatch) {
+      const sharedDays = this.extractAllDaysFromSharedPattern(sharedMatch[0]);
+      if (sharedDays.length > 1) {
+        // Extract content for this shared session
+        const sessionContent = this.extractSharedSessionContent(lines, lineIndex);
+        sharedDays.forEach(day => {
+          sharedSessions.set(day, sessionContent);
+        });
+      }
+    }
+  });
+  
+  // Process each day
   daysInWeek.forEach((dayInfo, index) => {
-    const nextDayIndex = index + 1 < daysInWeek.length 
-      ? daysInWeek[index + 1].lineIndex 
-      : weekContent.split('\n').length;
-    
-    const lines = weekContent.split('\n');
-    const dayContent = lines.slice(dayInfo.lineIndex, nextDayIndex).join('\n');
-    
-    // Look for multiple sessions within this day
-    const sessionsInDay = this.extractMultipleSessionsFromDayContent(dayContent);
-    
-    sessionsByDay[dayInfo.day] = sessionsInDay.length > 0 ? sessionsInDay : [dayContent];
+    // Check if this day has a shared session
+    if (sharedSessions.has(dayInfo.day)) {
+      const sharedContent = sharedSessions.get(dayInfo.day);
+      sessionsByDay[dayInfo.day] = [sharedContent];
+    } else {
+      // Extract individual day content
+      const nextDayIndex = index + 1 < daysInWeek.length 
+        ? daysInWeek[index + 1].lineIndex 
+        : lines.length;
+      
+      const dayContent = lines.slice(dayInfo.lineIndex, nextDayIndex).join('\n');
+      const sessionsInDay = this.extractMultipleSessionsFromDayContent(dayContent);
+      
+      sessionsByDay[dayInfo.day] = sessionsInDay.length > 0 ? sessionsInDay : [dayContent];
+    }
   });
   
   return sessionsByDay;
+}
+
+extractAllDaysFromSharedPattern(sharedText) {
+  const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const foundDays = [];
+  
+  allDays.forEach(day => {
+    if (new RegExp(`\\b${day}\\b`, 'i').test(sharedText)) {
+      foundDays.push(day);
+    }
+  });
+  
+  return foundDays;
+}
+
+extractSharedSessionContent(lines, startLineIndex) {
+  // Extract content from the shared session header until the next day/section marker
+  const contentLines = [];
+  let currentIndex = startLineIndex + 1;
+  
+  const stopPatterns = [
+    /^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(?:\(|:|-)/i,
+    /^week\s*\d+/i,
+    /^day\s*\d+/i
+  ];
+  
+  while (currentIndex < lines.length) {
+    const line = lines[currentIndex].trim();
+    
+    // Stop if we hit another day/section marker
+    if (stopPatterns.some(pattern => pattern.test(line))) {
+      break;
+    }
+    
+    contentLines.push(lines[currentIndex]);
+    currentIndex++;
+    
+    // Safety limit
+    if (contentLines.length > 100) break;
+  }
+  
+  return contentLines.join('\n');
 }
 
 extractMultipleSessionsFromDayContent(dayContent) {
@@ -767,12 +833,17 @@ extractMultipleSessionsFromDayContent(dayContent) {
 }
 
 createSessionFromContent(sessionContent, weekNum, dayNum, sessionNum, day, academyInfo) {
+  // Check if this content is shared with other days
+  const isSharedSession = this.detectIfSharedSession(sessionContent);
+  
   return {
     id: `session_${weekNum}_${dayNum}_${sessionNum}_${Date.now()}`,
     weekNumber: weekNum,
     dayNumber: dayNum,
     sessionNumber: sessionNum,
-    title: `Session ${sessionNum} - ${this.capitalizeFirst(day)}`,
+    title: isSharedSession 
+      ? `Shared Session ${sessionNum} - ${this.capitalizeFirst(day)}`
+      : `Session ${sessionNum} - ${this.capitalizeFirst(day)}`,
     day: day,
     date: this.calculateSessionDate(weekNum, day),
     time: this.extractTimeFromContext(sessionContent) || '08:00',
@@ -786,12 +857,42 @@ createSessionFromContent(sessionContent, weekNum, dayNum, sessionNum, day, acade
     ageGroup: academyInfo.ageGroup,
     activities: this.extractActivitiesFromContext(sessionContent),
     
-    // CRITICAL: Store the complete raw content for this specific session
+    // CRITICAL: Full session content preserved
     rawContent: sessionContent,
     documentContent: sessionContent,
     
+    // Mark if shared
+    isSharedSession: isSharedSession,
+    sharedWith: isSharedSession ? this.extractSharedDays(sessionContent) : [],
+    
     focus: this.extractSessionFocus([sessionContent])
   };
+}
+
+detectIfSharedSession(content) {
+  const sharedPatterns = [
+    /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\/\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
+    /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*,\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
+    /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+and\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i
+  ];
+  
+  return sharedPatterns.some(pattern => pattern.test(content));
+}
+
+extractSharedDays(content) {
+  const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const foundDays = [];
+  
+  // Look in the first 5 lines for day mentions
+  const firstLines = content.split('\n').slice(0, 5).join(' ');
+  
+  allDays.forEach(day => {
+    if (new RegExp(`\\b${day}\\b`, 'i').test(firstLines)) {
+      foundDays.push(day);
+    }
+  });
+  
+  return foundDays;
 }
 
 extractWeekContent(text, weekNumber, weekMarkers) {
