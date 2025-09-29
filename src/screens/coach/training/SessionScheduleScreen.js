@@ -938,10 +938,23 @@ const SessionScheduleScreen = ({ navigation, route }) => {
   };
 
   const renderTrainingPlan = () => {
-  const contentToDisplay = session.documentContent || session.rawContent || '';
-  
-  return (
-    <View style={styles.tabContent}>
+    // PRIORITY 1: Use the complete day context from parent
+    let contentToDisplay = session.rawContent || session.documentContent || '';
+    
+    // PRIORITY 2: If this is part of multiple sessions, show the day context
+    if (session.sessionsForDay && session.sessionsForDay.length > 0) {
+      // Use the first session's complete day context
+      contentToDisplay = session.sessionsForDay[0].rawContent || contentToDisplay;
+    }
+    
+    // PRIORITY 3: If we have sessionSpecificContent, that's more precise
+    if (session.sessionSpecificContent && session.sessionSpecificContent.length > contentToDisplay.length * 0.3) {
+      // Only use if it's substantial (at least 30% of day content)
+      contentToDisplay = session.sessionSpecificContent;
+    }
+    
+    return (
+      <View style={styles.tabContent}>
       {/* Show day-specific information */}
       <Card style={styles.sectionCard}>
         <Card.Content>

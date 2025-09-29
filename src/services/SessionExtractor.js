@@ -412,6 +412,31 @@ async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
     
    // Create daily sessions with proper session grouping
     Object.entries(sessionsByDay).forEach(([day, daySessions], dayIndex) => {
+      // CRITICAL FIX: Extract the FULL day section from the original week content
+      const dayStartPattern = new RegExp(`(${day}|day.*${day}).*`, 'gi');
+      const dayMatch = weekContent.match(dayStartPattern);
+      const dayStartIndex = dayMatch ? weekContent.indexOf(dayMatch[0]) : 0;
+      
+      // Find where this day's content ends (next day or end of week)
+      const allDaysInWeek = Object.keys(sessionsByDay);
+      const currentDayIndex = allDaysInWeek.indexOf(day);
+      const nextDay = currentDayIndex < allDaysInWeek.length - 1 ? allDaysInWeek[currentDayIndex + 1] : null;
+      
+      let dayEndIndex = weekContent.length;
+      if (nextDay) {
+        const nextDayPattern = new RegExp(`(${nextDay}|day.*${nextDay}).*`, 'gi');
+        const nextDayMatch = weekContent.match(nextDayPattern);
+        if (nextDayMatch) {
+          const nextDayStart = weekContent.indexOf(nextDayMatch[0]);
+          if (nextDayStart > dayStartIndex) {
+            dayEndIndex = nextDayStart;
+          }
+        }
+      }
+      
+      // Extract the COMPLETE day content
+      const completeDayContent = weekContent.substring(dayStartIndex, dayEndIndex).trim();
+      
       const dailySessionEntry = {
         id: `day_${weekNum}_${dayIndex}_${Date.now()}`,
         weekNumber: weekNum,
@@ -419,12 +444,12 @@ async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
         day: day,
         date: this.calculateSessionDate(weekNum, day),
         
-        // CRITICAL: Store the complete day content
-        rawContent: daySessions.join('\n\n'),
-        documentContent: daySessions.join('\n\n'),
+        // CRITICAL: Store COMPLETE day content
+        rawContent: completeDayContent,
+        documentContent: completeDayContent,
         
         sessionsForDay: daySessions.map((sessionContent, sessionIdx) => 
-          this.createSessionFromContent(sessionContent, weekNum, dayIndex + 1, sessionIdx + 1, day, academyInfo)
+          this.createSessionFromContent(sessionContent, weekNum, dayIndex + 1, sessionIdx + 1, day, academyInfo, completeDayContent)
         )
       };
       
@@ -695,13 +720,62 @@ extractDaysFromWeekContent(weekContent) {
   lines.forEach((line, lineIndex) => {
     const lineLower = line.toLowerCase();
     
-    allDays.forEach(day => {
-      if (lineLower.includes(day) && !daysFound.has(day)) {
+    // Pattern 1: "Day 1 (Monday) & Day 3 (Friday)" format
+    const dayNumberPattern = /day\s*\d+\s*\(([a-z]+)\)/gi;
+    let dayMatch;
+    while ((dayMatch = dayNumberPattern.exec(lineLower)) !== null) {
+      const day = dayMatch[1];
+      if (allDays.includes(day) && !daysFound.has(day)) {
         daysFound.set(day, {
           day: day,
           lineIndex: lineIndex,
-          content: line
+          content: line,
+          isShared: line.includes('&') || line.includes('/')
         });
+      }
+    }
+    
+    // Pattern 2: "Monday/Friday" or "Wednesday/Saturday/Sunday" format
+    const slashPattern = /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\/\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/gi;
+    if (slashPattern.test(lineLower)) {
+      const foundDaysInLine = allDays.filter(day => lineLower.includes(day));
+      foundDaysInLine.forEach(day => {
+        if (!daysFound.has(day)) {
+          daysFound.set(day, {
+            day: day,
+            lineIndex: lineIndex,
+            content: line,
+            isShared: true,
+            sharedWith: foundDaysInLine.filter(d => d !== day)
+          });
+        }
+      });
+    }
+    
+    // Pattern 3: Simple day headers "## Day 2 (Wednesday) & Day 4 (Saturday)"
+    allDays.forEach(day => {
+      const simplePattern = new RegExp(`##\\s*day\\s*\\d+\\s*\\(${day}\\)`, 'i');
+      if (simplePattern.test(lineLower) && !daysFound.has(day)) {
+        daysFound.set(day, {
+          day: day,
+          lineIndex: lineIndex,
+          content: line,
+          isShared: line.includes('&') || line.includes('/')
+        });
+      }
+    });
+    
+    // Pattern 4: Standalone day names as headers
+    allDays.forEach(day => {
+      if (lineLower.trim() === day || lineLower.startsWith(day + ' ')) {
+        if (!daysFound.has(day)) {
+          daysFound.set(day, {
+            day: day,
+            lineIndex: lineIndex,
+            content: line,
+            isShared: false
+          });
+        }
       }
     });
   });
@@ -718,48 +792,33 @@ groupSessionsByDay(weekContent, daysInWeek) {
     return sessionsByDay;
   }
   
-  // First, detect if there are shared sessions (e.g., "Monday/Friday" or "Wednesday/Saturday/Sunday")
-  const sharedSessionPattern = /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s*\/\s*|\s*,\s*|\s+and\s+)(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:(?:\s*\/\s*|\s*,\s*|\s+and\s+)(monday|tuesday|wednesday|thursday|friday|saturday|sunday))*/gi;
-  
   const lines = weekContent.split('\n');
-  const sharedSessions = new Map(); // Map of session content to array of days
   
-  // Detect shared session markers
-  lines.forEach((line, lineIndex) => {
-    const sharedMatch = line.match(sharedSessionPattern);
-    if (sharedMatch) {
-      const sharedDays = this.extractAllDaysFromSharedPattern(sharedMatch[0]);
-      if (sharedDays.length > 1) {
-        // Extract content for this shared session
-        const sessionContent = this.extractSharedSessionContent(lines, lineIndex);
-        sharedDays.forEach(day => {
-          sharedSessions.set(day, sessionContent);
-        });
-      }
-    }
-  });
-  
-  // Process each day
   daysInWeek.forEach((dayInfo, index) => {
-    // Check if this day has a shared session
-    if (sharedSessions.has(dayInfo.day)) {
-      const sharedContent = sharedSessions.get(dayInfo.day);
-      sessionsByDay[dayInfo.day] = [sharedContent];
+    const day = dayInfo.day;
+    const dayLineIndex = dayInfo.lineIndex;
+    
+    // Find the next day boundary
+    const nextDayIndex = index + 1 < daysInWeek.length 
+      ? daysInWeek[index + 1].lineIndex 
+      : lines.length;
+    
+    // Extract ALL content between this day and next day
+    const dayLines = lines.slice(dayLineIndex, nextDayIndex);
+    const completeDayContent = dayLines.join('\n').trim();
+    
+    // Store the complete content for this day
+    if (completeDayContent.length > 10) {  // Only if substantial content
+      sessionsByDay[day] = [completeDayContent];
     } else {
-      // Extract individual day content
-      const nextDayIndex = index + 1 < daysInWeek.length 
-        ? daysInWeek[index + 1].lineIndex 
-        : lines.length;
-      
-      const dayContent = lines.slice(dayInfo.lineIndex, nextDayIndex).join('\n');
-      const sessionsInDay = this.extractMultipleSessionsFromDayContent(dayContent);
-      
-      sessionsByDay[dayInfo.day] = sessionsInDay.length > 0 ? sessionsInDay : [dayContent];
+      // Fallback for days with minimal content
+      sessionsByDay[day] = [`Training session for ${day}`];
     }
   });
   
   return sessionsByDay;
 }
+
 
 extractAllDaysFromSharedPattern(sharedText) {
   const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -832,18 +891,16 @@ extractMultipleSessionsFromDayContent(dayContent) {
   return sessions.length > 1 ? sessions : [dayContent];
 }
 
-createSessionFromContent(sessionContent, weekNum, dayNum, sessionNum, day, academyInfo) {
-  // Check if this content is shared with other days
-  const isSharedSession = this.detectIfSharedSession(sessionContent);
+createSessionFromContent(sessionContent, weekNum, dayNum, sessionNum, day, academyInfo, completeDayContext = null) {
+  // Use the complete day context if available, otherwise fall back to session content
+  const contentToStore = completeDayContext || sessionContent;
   
   return {
     id: `session_${weekNum}_${dayNum}_${sessionNum}_${Date.now()}`,
     weekNumber: weekNum,
     dayNumber: dayNum,
     sessionNumber: sessionNum,
-    title: isSharedSession 
-      ? `Shared Session ${sessionNum} - ${this.capitalizeFirst(day)}`
-      : `Session ${sessionNum} - ${this.capitalizeFirst(day)}`,
+    title: `Session ${sessionNum} - ${this.capitalizeFirst(day)}`,
     day: day,
     date: this.calculateSessionDate(weekNum, day),
     time: this.extractTimeFromContext(sessionContent) || '08:00',
@@ -857,13 +914,12 @@ createSessionFromContent(sessionContent, weekNum, dayNum, sessionNum, day, acade
     ageGroup: academyInfo.ageGroup,
     activities: this.extractActivitiesFromContext(sessionContent),
     
-    // CRITICAL: Full session content preserved
-    rawContent: sessionContent,
-    documentContent: sessionContent,
+    // CRITICAL: Store the COMPLETE day context
+    rawContent: contentToStore,
+    documentContent: contentToStore,
     
-    // Mark if shared
-    isSharedSession: isSharedSession,
-    sharedWith: isSharedSession ? this.extractSharedDays(sessionContent) : [],
+    // Also store the specific session portion
+    sessionSpecificContent: sessionContent,
     
     focus: this.extractSessionFocus([sessionContent])
   };
