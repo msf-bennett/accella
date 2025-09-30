@@ -470,7 +470,7 @@ static async loadPDFProcessor() {
         };
       }
       
-      console.log(`[${this.isWeb() ? 'WEB' : 'MOBILE'}] ${context}:`, logData);
+      //console.log(`[${this.isWeb() ? 'WEB' : 'MOBILE'}] ${context}:`, logData);
     }
   }
 

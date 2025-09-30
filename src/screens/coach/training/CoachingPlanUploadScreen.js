@@ -149,11 +149,11 @@ const loadDocuments = async () => {
     // Filter out cleared documents for display
     const filteredDocs = docs.filter(doc => !clearedDocuments.has(doc.id));
     
-    console.log('Documents loaded:', {
-      count: filteredDocs.length,
-      total: docs.length,
-      cleared: docs.length - filteredDocs.length
-    });
+    //console.log('Documents loaded:', {
+    //  count: filteredDocs.length,
+    //  total: docs.length,
+    //  cleared: docs.length - filteredDocs.length
+    //});
     
     setDocuments(filteredDocs);
   } catch (error) {
@@ -171,7 +171,7 @@ const handleDocumentUpload = async () => {
     setUploadStatus('Opening file selector...');
     setIntegrityResult(null);
 
-    console.log('Starting enhanced document upload process...');
+    //console.log('Starting enhanced document upload process...');
 
     // Step 1: Select document
     const file = await DocumentProcessor.selectDocument();
@@ -214,7 +214,7 @@ const handleDocumentUpload = async () => {
     try {
       const extractionResult = await DocumentProcessor.extractDocumentText(result.document);
       structureAnalysis = await DocumentProcessor.analyzeDocumentStructure(extractionResult.text, result.document);
-      console.log('Document structure analysis completed:', structureAnalysis);
+      //t structure analysis completed:', structureAnalysis);
     } catch (error) {
       console.warn('Structure analysis failed:', error);
     }

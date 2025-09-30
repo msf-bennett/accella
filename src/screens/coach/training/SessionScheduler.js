@@ -1,5 +1,5 @@
 //src/screens/coach/training/SessionScheduler.js
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -111,7 +111,7 @@ if (Platform.OS === 'web') {
 
 const { width, height } = Dimensions.get('window');
 
-const SessionScheduler = ({ navigation }) => {
+const SessionScheduler = ({ navigation, route  }) => {
   const COLORS_FALLBACK = {
     primary: '#667eea',
     secondary: '#764ba2',
@@ -139,6 +139,7 @@ const SessionScheduler = ({ navigation }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState([]);
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState('all');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [aiRecommendations, setAiRecommendations] = useState([]);
@@ -211,6 +212,21 @@ const SessionScheduler = ({ navigation }) => {
       useNativeDriver: true,
     }).start();
   }, []);
+
+  useEffect(() => {
+    const { filter, createNew } = route.params || {};
+    
+    if (filter) {
+      setSelectedTimePeriod(filter === 'today' ? 'today' : 
+                          filter === 'tomorrow' ? 'tomorrow' :
+                          filter === 'week' ? 'thisWeek' :
+                          filter === 'month' ? 'thisMonth' : 'all');
+    }
+    
+    if (createNew) {
+      setShowCreateModal(true);
+    }
+  }, [route.params]);
 
  const initializeSessionData = async () => {
   try {
@@ -501,6 +517,65 @@ const handleSessionPress = (session) => {
     return sessionTypes.find(t => t.id === type) || sessionTypes[0];
   };
 
+  // Add these helper functions after handleEditSession
+    const isToday = (dateString) => {
+      const today = new Date();
+      const sessionDate = new Date(dateString);
+      return today.toDateString() === sessionDate.toDateString();
+    };
+
+    const isTomorrow = (dateString) => {
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const sessionDate = new Date(dateString);
+      return tomorrow.toDateString() === sessionDate.toDateString();
+    };
+
+    const isThisWeek = (dateString) => {
+      const today = new Date();
+      const sessionDate = new Date(dateString);
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      
+      return sessionDate >= startOfWeek && sessionDate <= endOfWeek && !isToday(dateString) && !isTomorrow(dateString);
+    };
+
+    const isThisMonth = (dateString) => {
+      const today = new Date();
+      const sessionDate = new Date(dateString);
+      return sessionDate.getMonth() === today.getMonth() && 
+            sessionDate.getFullYear() === today.getFullYear() &&
+            !isToday(dateString) && !isTomorrow(dateString) && !isThisWeek(dateString);
+    };
+
+    const groupSessionsByTimePeriod = (sessions) => {
+      const grouped = {
+        today: [],
+        tomorrow: [],
+        thisWeek: [],
+        thisMonth: [],
+        allSessions: []
+      };
+      
+      sessions.forEach(session => {
+        if (isToday(session.date)) {
+          grouped.today.push(session);
+        } else if (isTomorrow(session.date)) {
+          grouped.tomorrow.push(session);
+        } else if (isThisWeek(session.date)) {
+          grouped.thisWeek.push(session);
+        } else if (isThisMonth(session.date)) {
+          grouped.thisMonth.push(session);
+        }
+        grouped.allSessions.push(session);
+      });
+      
+      return grouped;
+    };
+
   const getDifficultyColor = (difficulty) => {
     const colors = {
       'Beginner': COLORS?.success || COLORS_FALLBACK.success,
@@ -538,32 +613,37 @@ const handleSessionPress = (session) => {
     }
     return 'Training';
   };
+  
+    // Filter and group sessions
+    const { groupedByTime, filteredAndGrouped } = React.useMemo(() => {
+      let filtered = allSessions.filter(session => {
+        const matchesSearch = session.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (session.location && session.location.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                            (session.academyName && session.academyName.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  // Filter sessions based on search and filters
-  const filteredSessions = allSessions.filter(session => {
-    const matchesSearch = session.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         (session.location && session.location.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                         (session.academyName && session.academyName.toLowerCase().includes(searchQuery.toLowerCase()));
+        const matchesFilter = selectedFilters.length === 0 || 
+                            selectedFilters.some(filter => 
+                              session.type?.toLowerCase().includes(filter.toLowerCase()) ||
+                              session.sport?.toLowerCase().includes(filter.toLowerCase()) ||
+                              session.difficulty?.toLowerCase().includes(filter.toLowerCase())
+                            );
 
-    const matchesFilter = selectedFilters.length === 0 || 
-                         selectedFilters.some(filter => 
-                           session.type?.toLowerCase().includes(filter.toLowerCase()) ||
-                           session.sport?.toLowerCase().includes(filter.toLowerCase()) ||
-                           session.difficulty?.toLowerCase().includes(filter.toLowerCase())
-                         );
+        return matchesSearch && matchesFilter;
+      });
 
-    return matchesSearch && matchesFilter;
-  });
-
-  // Group sessions by date
-  const groupedSessions = filteredSessions.reduce((groups, session) => {
-    const date = session.date;
-    if (!groups[date]) {
-      groups[date] = [];
-    }
-    groups[date].push(session);
-    return groups;
-  }, {});
+      const grouped = groupSessionsByTimePeriod(filtered);
+      
+      // Apply time period filter
+      let finalFiltered = filtered;
+      if (selectedTimePeriod !== 'all') {
+        finalFiltered = grouped[selectedTimePeriod];
+      }
+      
+      return {
+        groupedByTime: grouped,
+        filteredAndGrouped: finalFiltered
+      };
+    }, [allSessions, searchQuery, selectedFilters, selectedTimePeriod]);
 
   const styles = {
     container: {
@@ -813,6 +893,70 @@ const renderHeader = () => (
         iconColor={COLORS?.primary || COLORS_FALLBACK.primary}
         inputStyle={{ color: COLORS?.text || COLORS_FALLBACK.text }}
       />
+
+      {/* Quick Time Period Filters */}
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={{ marginTop: SPACING.md }}
+        contentContainerStyle={{ paddingHorizontal: 4 }}
+      >
+        <Chip
+          mode={selectedTimePeriod === 'all' ? 'flat' : 'outlined'}
+          selected={selectedTimePeriod === 'all'}
+          onPress={() => setSelectedTimePeriod('all')}
+          style={[
+            { marginRight: SPACING.xs, backgroundColor: selectedTimePeriod === 'all' ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)' }
+          ]}
+          textStyle={{ color: 'white', fontSize: 12 }}
+        >
+          All ({groupedByTime.allSessions.length})
+        </Chip>
+        <Chip
+          mode={selectedTimePeriod === 'today' ? 'flat' : 'outlined'}
+          selected={selectedTimePeriod === 'today'}
+          onPress={() => setSelectedTimePeriod('today')}
+          style={[
+            { marginRight: SPACING.xs, backgroundColor: selectedTimePeriod === 'today' ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)' }
+          ]}
+          textStyle={{ color: 'white', fontSize: 12 }}
+        >
+          Today ({groupedByTime.today.length})
+        </Chip>
+        <Chip
+          mode={selectedTimePeriod === 'tomorrow' ? 'flat' : 'outlined'}
+          selected={selectedTimePeriod === 'tomorrow'}
+          onPress={() => setSelectedTimePeriod('tomorrow')}
+          style={[
+            { marginRight: SPACING.xs, backgroundColor: selectedTimePeriod === 'tomorrow' ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)' }
+          ]}
+          textStyle={{ color: 'white', fontSize: 12 }}
+        >
+          Tomorrow ({groupedByTime.tomorrow.length})
+        </Chip>
+        <Chip
+          mode={selectedTimePeriod === 'thisWeek' ? 'flat' : 'outlined'}
+          selected={selectedTimePeriod === 'thisWeek'}
+          onPress={() => setSelectedTimePeriod('thisWeek')}
+          style={[
+            { marginRight: SPACING.xs, backgroundColor: selectedTimePeriod === 'thisWeek' ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)' }
+          ]}
+          textStyle={{ color: 'white', fontSize: 12 }}
+        >
+          This Week ({groupedByTime.thisWeek.length})
+        </Chip>
+        <Chip
+          mode={selectedTimePeriod === 'thisMonth' ? 'flat' : 'outlined'}
+          selected={selectedTimePeriod === 'thisMonth'}
+          onPress={() => setSelectedTimePeriod('thisMonth')}
+          style={[
+            { marginRight: SPACING.xs, backgroundColor: selectedTimePeriod === 'thisMonth' ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)' }
+          ]}
+          textStyle={{ color: 'white', fontSize: 12 }}
+        >
+          This Month ({groupedByTime.thisMonth.length})
+        </Chip>
+      </ScrollView>
     </LinearGradient>
   </View>
 );
@@ -1104,7 +1248,20 @@ const renderSessionCard = ({ item: session, index }) => {
 };
 
   const renderDateSections = () => {
-    const sections = Object.entries(groupedSessions).map(([date, sessions]) => ({
+  // Use filteredAndGrouped instead of filteredSessions
+  const sessionsToDisplay = filteredAndGrouped;
+  
+  // Group by date
+  const grouped = sessionsToDisplay.reduce((groups, session) => {
+    const date = session.date;
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(session);
+    return groups;
+  }, {});
+  
+  const sections = Object.entries(grouped).map(([date, sessions]) => ({
       date,
       sessions,
       data: sessions
@@ -1284,7 +1441,7 @@ const renderSessionCard = ({ item: session, index }) => {
       {renderHeader()}
       
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        {filteredSessions.length === 0 ? renderEmptyState() : renderDateSections()}
+        {filteredAndGrouped.length === 0 ? renderEmptyState() : renderDateSections()}
       </Animated.View>
 
       <FAB

@@ -1,3 +1,4 @@
+//src/screens/coach/CoachDashboard.js
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -30,6 +31,8 @@ import { LinearGradient } from '../../components/shared/LinearGradient';
 //import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { BlurView } from '../../components/shared/BlurView';
 import DocumentProcessor from '../../services/DocumentProcessor';
+import { calculateSessionCounts } from '../../utils/sessionCounters';
+import SessionExtractor from '../../services/SessionExtractor';
 import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../../styles/colors';
 import { SPACING } from '../../styles/layout';
@@ -50,31 +53,135 @@ const CoachDashboard = ({ navigation }) => {
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
-
+  const [sessionCarouselIndex, setSessionCarouselIndex] = useState(0);
+  const [planCarouselIndex, setPlanCarouselIndex] = useState(0);
+  const [todaySessions, setTodaySessions] = useState(0);
+  const [tomorrowSessions, setTomorrowSessions] = useState(0);
+  const [thisWeekSessions, setThisWeekSessions] = useState(0);
+  const [thisMonthSessions, setThisMonthSessions] = useState(0);
+  const [totalSessions, setTotalSessions] = useState(0);
   const { user } = useSelector(state => state.auth);
   const { trainingPlans, sessions } = useSelector(state => state.training);
   const dispatch = useDispatch();
 
-  useEffect(() => {
-    // Animate components on load
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
+  // Today's schedule for coach - MOVE THIS HERE
+  const todaySchedule = [
+    {
+      id: 1,
+      title: 'Team A - Strength Training',
+      time: '09:00 AM',
+      date: new Date().toISOString(), // ADD date property
+      duration: 60,
+      status: 'completed',
+      type: 'Team Session',
+      players: 12,
+      location: 'Gym A',
+      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=100',
+      completionRate: 100,
+      revenue: '$120'
+    },
+    {
+      id: 2,
+      title: '1-on-1 with Sarah Connor',
+      time: '02:00 PM',
+      date: new Date().toISOString(), // ADD date property
+      duration: 45,
+      status: 'completed',
+      type: 'Personal Training',
+      players: 1,
+      location: 'Studio B',
+      image: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=100',
+      completionRate: 95,
+      revenue: '$80'
+    },
+    {
+      id: 3,
+      title: 'Youth Team - Agility',
+      time: '05:30 PM',
+      date: new Date().toISOString(), // ADD date property
+      duration: 90,
+      status: 'upcoming',
+      type: 'Youth Training',
+      players: 8,
+      location: 'Field C',
+      image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=100',
+      completionRate: 0,
+      revenue: '$160'
+    }
+  ];
 
-    // Update time slot
-    updateTimeSlot();
-    const interval = setInterval(updateTimeSlot, 60000);
-    return () => clearInterval(interval);
-  }, []);
+      const updateSessionCounts = useCallback(async () => {
+        try {
+          const plans = await DocumentProcessor.getTrainingPlans();
+          const allExtractedSessions = [];
+          
+          for (const plan of plans) {
+            if (plan.sourceDocument) {
+              const documents = await DocumentProcessor.getStoredDocuments();
+              const sourceDoc = documents.find(doc => doc.id === plan.sourceDocument);
+              
+              if (sourceDoc) {
+                const extractionResult = await SessionExtractor.extractSessionsFromDocument(sourceDoc, plan);
+                
+                if (extractionResult && extractionResult.sessions) {
+                  extractionResult.sessions.forEach((weekSession, weekIndex) => {
+                    allExtractedSessions.push({
+                      id: `week_${weekSession.id}`,
+                      date: calculateSessionDate(weekIndex + 1, 'monday'),
+                      time: '08:00'
+                    });
+                    
+                    if (weekSession.dailySessions) {
+                      weekSession.dailySessions.forEach((dailySession) => {
+                        allExtractedSessions.push({
+                          id: `daily_${dailySession.id}`,
+                          date: dailySession.date,
+                          time: dailySession.time
+                        });
+                      });
+                    }
+                  });
+                }
+              }
+            }
+          }
+          
+          const counts = calculateSessionCounts(allExtractedSessions, todaySchedule);
+          
+          setTotalSessions(counts.total);  // Set total count
+          setTodaySessions(counts.today);
+          setTomorrowSessions(counts.tomorrow);
+          setThisWeekSessions(counts.thisWeek);
+          setThisMonthSessions(counts.thisMonth);
+          
+        } catch (error) {
+          console.error('Error calculating session counts:', error);
+        }
+      }, [todaySchedule]);
+
+  useEffect(() => {
+  // Animate components on load
+  Animated.parallel([
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }),
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 800,
+      useNativeDriver: true,
+    }),
+  ]).start();
+  
+  // Replace calculateSessionCounts() with:
+  updateSessionCounts();
+  
+  // Update time slot
+  updateTimeSlot();
+  const interval = setInterval(updateTimeSlot, 60000);
+  return () => clearInterval(interval);
+}, [updateSessionCounts]); // Add dependency
 
   //coaching plan(s) counter
       const loadTrainingPlansCount = useCallback(async () => {
@@ -93,48 +200,185 @@ const CoachDashboard = ({ navigation }) => {
       }, [loadTrainingPlansCount])
     );
 
-  const updateTimeSlot = () => {
-    const hour = new Date().getHours();
-    if (hour < 6) setCurrentTimeSlot('Late Night');
-    else if (hour < 12) setCurrentTimeSlot('Morning');
-    else if (hour < 17) setCurrentTimeSlot('Afternoon');
-    else if (hour < 21) setCurrentTimeSlot('Evening');
-    else setCurrentTimeSlot('Night');
+    // Session card carousel auto-rotation
+    useEffect(() => {
+      const sessionInterval = setInterval(() => {
+        setSessionCarouselIndex(prev => (prev + 1) % 6); // 6 slides total
+      }, 11000);
+      
+      return () => clearInterval(sessionInterval);
+    }, []);
+
+    // Plan card carousel auto-rotation
+    useEffect(() => {
+      const planInterval = setInterval(() => {
+        setPlanCarouselIndex(prev => (prev + 1) % 4); // 4 slides total
+      }, 13000);
+      
+      return () => clearInterval(planInterval);
+    }, []);
+
+    const calculateSessionDate = (weekNumber, dayName) => {
+    const today = new Date();
+    const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      .indexOf(dayName.toLowerCase());
+    
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + (weekNumber - 1) * 7);
+    
+    const currentDay = targetDate.getDay();
+    const daysToAdd = (dayIndex - currentDay + 7) % 7;
+    targetDate.setDate(targetDate.getDate() + daysToAdd);
+    
+    return targetDate.toISOString().split('T')[0];
   };
 
-  const onRefresh = async () => {
-  setRefreshing(true);
-  Vibration.vibrate(50);
-  
-  try {
-    await loadTrainingPlansCount(); // Add this line
-    // Add any other refresh logic here
-  } catch (error) {
-    console.error('Error refreshing data:', error);
-  } finally {
-    setTimeout(() => setRefreshing(false), 1500);
-  }
-};
-
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    const greetings = {
-      morning: ['Rise & Lead', 'Good Morning', 'Morning Coach'],
-      afternoon: ['Keep Inspiring', 'Good Afternoon', 'Lead Strong'],
-      evening: ['Evening Leader', 'Good Evening', 'Wind Down'],
-      night: ['Late Night Mentor', 'Good Night', 'Rest Well']
+    const updateTimeSlot = () => {
+      const hour = new Date().getHours();
+      if (hour < 6) setCurrentTimeSlot('Late Night');
+      else if (hour < 12) setCurrentTimeSlot('Morning');
+      else if (hour < 17) setCurrentTimeSlot('Afternoon');
+      else if (hour < 21) setCurrentTimeSlot('Evening');
+      else setCurrentTimeSlot('Night');
     };
+
+    const onRefresh = async () => {
+      setRefreshing(true);
+      Vibration.vibrate(50);
+      
+      try {
+        await loadTrainingPlansCount();
+        await updateSessionCounts(); // Add this line
+      } catch (error) {
+        console.error('Error refreshing data:', error);
+      } finally {
+        setTimeout(() => setRefreshing(false), 1500);
+      }
+    };
+
+    const getGreeting = () => {
+      const hour = new Date().getHours();
+      const greetings = {
+        morning: ['Rise & Lead', 'Good Morning', 'Morning Coach'],
+        afternoon: ['Keep Inspiring', 'Good Afternoon', 'Lead Strong'],
+        evening: ['Evening Leader', 'Good Evening', 'Wind Down'],
+        night: ['Late Night Mentor', 'Good Night', 'Rest Well']
+      };
+      
+      let timeKey = 'morning';
+      if (hour >= 12 && hour < 17) timeKey = 'afternoon';
+      else if (hour >= 17 && hour < 21) timeKey = 'evening';
+      else if (hour >= 21 || hour < 6) timeKey = 'night';
+      
+      const options = greetings[timeKey];
+      return options[Math.floor(Math.random() * options.length)];
+    };
+
+    // Enhanced stats data with more comprehensive metrics
+    const getSessionCardContent = () => {
+    const slides = [
+      {
+        icon: 'fitness-center',
+        label: 'Total Sessions',
+        value: `${totalSessions}`,  // DYNAMIC TOTAL SESSIONS 
+        subtitle: 'all sessions',
+        color: '#45B7D1',
+        trend: 'all time',
+        onPress: () => navigation.navigate('SessionScheduler')
+      },
+      {
+        icon: 'today',
+        label: todaySessions === 0 ? 'No sessions' : 'Today',
+        value: todaySessions === 0 ? 'today' : `${todaySessions}`,
+        subtitle: todaySessions === 0 ? 'free day' : 'sessions today',
+        color: '#4ECDC4',
+        trend: 'tap to view',
+        onPress: () => navigation.navigate('SessionScheduler', { filter: 'today' })
+      },
+      {
+        icon: 'wb-sunny',
+        label: 'Tomorrow',
+        value: `${tomorrowSessions}`,
+        subtitle: 'upcoming',
+        color: '#FF9800',
+        trend: 'next day',
+        onPress: () => navigation.navigate('SessionScheduler', { filter: 'tomorrow' })
+      },
+      {
+        icon: 'date-range',
+        label: 'This Week',
+        value: `${thisWeekSessions}`,
+        subtitle: 'sessions',
+        color: '#9C27B0',
+        trend: '7 days',
+        onPress: () => navigation.navigate('SessionScheduler', { filter: 'week' })
+      },
+      {
+        icon: 'calendar-today',
+        label: 'This Month',
+        value: `${thisMonthSessions}`,
+        subtitle: 'sessions',
+        color: '#2196F3',
+        trend: '30 days',
+        onPress: () => navigation.navigate('SessionScheduler', { filter: 'month' })
+      },
+      {
+        icon: 'add-circle',
+        label: 'Create Session',
+        value: '+',
+        subtitle: 'new session',
+        color: '#4CAF50',
+        trend: 'tap to create',
+        onPress: () => navigation.navigate('SessionScheduler', { createNew: true })
+      }
+    ];
     
-    let timeKey = 'morning';
-    if (hour >= 12 && hour < 17) timeKey = 'afternoon';
-    else if (hour >= 17 && hour < 21) timeKey = 'evening';
-    else if (hour >= 21 || hour < 6) timeKey = 'night';
-    
-    const options = greetings[timeKey];
-    return options[Math.floor(Math.random() * options.length)];
+    return slides[sessionCarouselIndex];
   };
 
-  // Enhanced stats data with more comprehensive metrics
+  const getPlanCardContent = () => {
+    const slides = [
+      {
+        icon: 'assignment',
+        label: 'Your Plans',
+        value: `${trainingPlansCount}`,
+        subtitle: 'training programs',
+        color: '#667eea',
+        trend: 'view all',
+        onPress: () => navigation.navigate('TrainingPlanLibrary')
+      },
+      {
+        icon: 'psychology',
+        label: 'Idea in Mind?',
+        value: '💡',
+        subtitle: 'create now',
+        color: '#FF6B6B',
+        trend: 'start creating',
+        onPress: () => navigation.navigate('CreateTrainingPlan')
+      },
+      {
+        icon: 'cloud-upload',
+        label: 'Upload Plan',
+        value: '📤',
+        subtitle: 'import document',
+        color: '#4ECDC4',
+        trend: 'upload now',
+        onPress: () => navigation.navigate('CoachingPlanUploadScreen')
+      },
+      {
+        icon: 'folder-open',
+        label: 'View Plans',
+        value: '📚',
+        subtitle: 'your library',
+        color: '#45B7D1',
+        trend: 'browse all',
+        onPress: () => navigation.navigate('TrainingPlanLibrary')
+      }
+    ];
+    
+    return slides[planCarouselIndex];
+  };
+
   const liveStats = [
     { 
       icon: 'group', 
@@ -145,24 +389,8 @@ const CoachDashboard = ({ navigation }) => {
       trend: '+3 this week',
       onPress: () => navigation.navigate('Players')
     },
-    { 
-      icon: 'assignment', 
-      label: 'Plans', 
-      value: `${trainingPlansCount}`, 
-      subtitle: 'training programs',
-      color: '#4ECDC4',
-      trend: '2 new plans',
-      onPress: () => navigation.navigate('TrainingPlanLibrary')
-    },
-    { 
-      icon: 'fitness-center', 
-      label: 'Sessions', 
-      value: `${sessions?.length || 32}`, 
-      subtitle: 'this month',
-      color: '#45B7D1',
-      trend: '12 completed',
-     onPress: () => navigation.navigate('UpcomingSessions')
-    },
+    getPlanCardContent(), // DYNAMIC PLAN CARD
+    getSessionCardContent(), // DYNAMIC SESSION CARD
     { 
       icon: 'payments', 
       label: 'Revenue', 
@@ -170,51 +398,8 @@ const CoachDashboard = ({ navigation }) => {
       subtitle: 'monthly earnings',
       color: '#F39C12',
       trend: '+15% growth',
-     onPress: () => navigation.navigate('ClientManagement')
+      onPress: () => navigation.navigate('ClientManagement')
     },
-  ];
-
-  // Today's schedule for coach
-  const todaySchedule = [
-    {
-      id: 1,
-      title: 'Team A - Strength Training',
-      time: '09:00 AM',
-      duration: 60,
-      status: 'completed',
-      type: 'Team Session',
-      players: 12,
-      location: 'Gym A',
-      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=100',
-      completionRate: 100,
-      revenue: '$120'
-    },
-    {
-      id: 2,
-      title: '1-on-1 with Sarah Connor',
-      time: '02:00 PM',
-      duration: 45,
-      status: 'completed',
-      type: 'Personal Training',
-      players: 1,
-      location: 'Studio B',
-      image: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=100',
-      completionRate: 95,
-      revenue: '$80'
-    },
-    {
-      id: 3,
-      title: 'Youth Team - Agility',
-      time: '05:30 PM',
-      duration: 90,
-      status: 'upcoming',
-      type: 'Youth Training',
-      players: 8,
-      location: 'Field C',
-      image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=100',
-      completionRate: 0,
-      revenue: '$160'
-    }
   ];
 
   // Enhanced quick actions covering all navigator features
@@ -750,12 +935,12 @@ const getCoachInitials = () => {
           <View style={styles.statsGrid}>
             {liveStats.map((stat, index) => (
               <TouchableOpacity 
-              key={index} 
+                key={index} 
                 style={[styles.statCard, { backgroundColor: stat.color }]}
-                onPress={stat.onPress} // Add this line
-                activeOpacity={stat.onPress ? 0.7 : 1} // Add this line
+                onPress={stat.onPress}
+                activeOpacity={0.7}
               >
-              <View style={styles.statContent}>
+                <View style={styles.statContent}>
                   <View style={styles.statHeader}>
                     <Icon name={stat.icon} size={28} color="white" />
                     <Text style={styles.statTrend}>{stat.trend}</Text>
@@ -763,6 +948,22 @@ const getCoachInitials = () => {
                   <Text style={styles.statValue}>{stat.value}</Text>
                   <Text style={styles.statLabel}>{stat.label}</Text>
                   <Text style={styles.statSubtitle}>{stat.subtitle}</Text>
+                  
+                  {/* ADD CAROUSEL INDICATORS */}
+                  {(index === 1 || index === 2) && (
+                    <View style={styles.carouselIndicators}>
+                      {Array.from({ length: index === 1 ? 4 : 6 }).map((_, i) => (
+                        <View
+                          key={i}
+                          style={[
+                            styles.indicator,
+                            (index === 1 ? planCarouselIndex : sessionCarouselIndex) === i && 
+                            styles.activeIndicator
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  )}
                 </View>
               </TouchableOpacity>
             ))}
@@ -1988,6 +2189,22 @@ cameraIcon: {
 profileImageContainer: {
   position: 'relative',
   marginRight: SPACING.md || 16,
+},
+carouselIndicators: {
+  flexDirection: 'row',
+  justifyContent: 'center',
+  marginTop: 8,
+  gap: 4,
+},
+indicator: {
+  width: 6,
+  height: 6,
+  borderRadius: 3,
+  backgroundColor: 'rgba(255,255,255,0.3)',
+},
+activeIndicator: {
+  backgroundColor: 'rgba(255,255,255,0.9)',
+  width: 12,
 },
 });
 

@@ -866,7 +866,7 @@ async updateTrainingPlan(updatedPlan) {
 // 1. Main integrity check method - call this after storeDocument
 async verifyFileIntegrity(document) {
   try {
-    console.log('Starting file integrity check for:', document.id);
+    //console.log('Starting file integrity check for:', document.id);
     
     const checks = {
       basic: await this.performBasicIntegrityCheck(document),
@@ -1261,15 +1261,15 @@ generateIntegrityRecommendations(checks) {
 // In DocumentProcessor.js, modify storeDocumentWithIntegrityCheck:
 async storeDocumentWithIntegrityCheck(file) {
   try {
-    console.log('Starting document storage with integrity check...');
+    //console.log('Starting document storage with integrity check...');
     
     // Store the document first
     const document = await this.storeDocument(file);
-    console.log('Document stored successfully:', {
-      id: document.id,
-      name: document.originalName,
-      hasWebData: !!document.webFileData
-    });
+    //console.log('Document stored successfully:', {
+    //  id: document.id,
+    //  name: document.originalName,
+    //  hasWebData: !!document.webFileData
+    //});
     
     // Perform integrity check
     const integrityResult = await this.verifyFileIntegrity(document);
@@ -1284,7 +1284,7 @@ async storeDocumentWithIntegrityCheck(file) {
     
     // Update document with integrity results
     await this.updateDocumentMetadata(document);
-    console.log('Document metadata updated with integrity results');
+    //console.log('Document metadata updated with integrity results');
     
     // Verify the document was stored correctly
     const storedDocs = await this.getStoredDocuments();
@@ -1668,7 +1668,7 @@ async parseTrainingPlanContent(text, document, options = {}) {
 // AI-Enhanced document analysis
 async analyzeDocumentWithAI(text, document, options = {}) {
   try {
-    console.log('DocumentProcessor: Starting AI-enhanced document analysis');
+    //console.log('DocumentProcessor: Starting AI-enhanced document analysis');
     
     // First, do basic extraction
     const basicPlan = await this.parseTrainingPlanContent(text, document, options);
@@ -1742,7 +1742,7 @@ async analyzeDocumentStructure(text, document) {
 
 async analyzeDocumentStructureIntelligently(text, document) {
   try {
-    console.log('DocumentProcessor: Starting intelligent structure analysis');
+    //console.log('DocumentProcessor: Starting intelligent structure analysis');
     
     const analysis = {
       // Week detection
@@ -1770,7 +1770,7 @@ async analyzeDocumentStructureIntelligently(text, document) {
     // Calculate confidence
     analysis.confidence = this.calculateStructureConfidence(analysis);
     
-    console.log('Intelligent structure analysis:', analysis);
+    //console.log('Intelligent structure analysis:', analysis);
     
     return analysis;
   } catch (error) {
@@ -3656,7 +3656,7 @@ async getStoredDocuments() {
           // Ensure webFileData is properly restored
           if (Array.isArray(doc.webFileData)) {
             processedDoc.webFileData = doc.webFileData;
-            console.log('Restored web file data for document:', doc.id, 'size:', doc.webFileData.length);
+            //console.log('Restored web file data for document:', doc.id, 'size:', doc.webFileData.length);
           } else {
             console.warn('webFileData is not in expected array format for document:', doc.id);
           }

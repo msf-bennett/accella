@@ -330,7 +330,7 @@ multiLingualWeekDetection(text) {
 // Main extraction method
 async extractSessionsFromDocument(document, trainingPlan) {
   try {
-    console.log('Starting intelligent session extraction');
+    //console.log('Starting intelligent session extraction');
     
     const DocumentProcessor = (await import('./DocumentProcessor')).default;
     const extractionResult = await DocumentProcessor.extractDocumentText(document);
@@ -339,7 +339,7 @@ async extractSessionsFromDocument(document, trainingPlan) {
     // Use intelligent structure analysis
     const structureAnalysis = await DocumentProcessor.analyzeDocumentStructureIntelligently(text, document);
     
-    console.log('Structure pattern detected:', structureAnalysis.organizationPattern);
+    //console.log('Structure pattern detected:', structureAnalysis.organizationPattern);
     
     const academyInfo = this.extractAcademyInfo(text, trainingPlan, structureAnalysis);
     
@@ -795,12 +795,12 @@ extractDaysFromWeekContent(weekContent) {
   // Sort by appearance order
   const sortedDays = Array.from(daysFound.values()).sort((a, b) => a.lineIndex - b.lineIndex);
   
-  console.log('SessionExtractor: Days detected:', sortedDays.map(d => ({
-    day: d.day,
-    line: d.lineIndex,
-    shared: d.isShared,
-    with: d.sharedWith
-  })));
+  //console.log('SessionExtractor: Days detected:', sortedDays.map(d => ({
+  //  day: d.day,
+  //  line: d.lineIndex,
+  //  shared: d.isShared,
+  //  with: d.sharedWith
+  // })));
   
   return sortedDays;
 }
@@ -890,15 +890,15 @@ groupSessionsByDay(weekContent, daysInWeek) {
     if (completeDayContent.length > 20) {
       sessionsByDay[day] = [completeDayContent];
       
-      console.log(`SessionExtractor: Captured ${day} (${isSharedSession ? 'SHARED with ' + sharedWith.join(',') : 'INDIVIDUAL'}) content:`, {
-        startLine: dayLineIndex,
-        endLine: nextBoundaryIndex,
-        totalLines: dayLines.length,
-        contentLines: contentLines.length,
-        contentLength: completeDayContent.length,
-        firstChars: completeDayContent.substring(0, 150),
-        lastChars: completeDayContent.substring(Math.max(0, completeDayContent.length - 100))
-      });
+   //   console.log(`SessionExtractor: Captured ${day} (${isSharedSession ? 'SHARED with ' + sharedWith.join(',') : 'INDIVIDUAL'}) content:`, {
+   //     startLine: dayLineIndex,
+   //     endLine: nextBoundaryIndex,
+   //     totalLines: dayLines.length,
+   //     contentLines: contentLines.length,
+   //     contentLength: completeDayContent.length,
+   //     firstChars: completeDayContent.substring(0, 150),
+   //     lastChars: completeDayContent.substring(Math.max(0, completeDayContent.length - 100))
+   //   });
     } else {
       console.warn(`SessionExtractor: ${day} has minimal content (${completeDayContent.length} chars)`);
       sessionsByDay[day] = [`Training session for ${day}\n\nContent extraction incomplete.`];

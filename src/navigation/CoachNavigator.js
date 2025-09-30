@@ -615,6 +615,11 @@ const DashboardStack = () => (
       options={{ title: 'Upcoming Sessions' }} 
     />
     <Stack.Screen 
+      name="SessionScheduler" 
+      component={SessionScheduler}
+      options={{ title: 'Scheduled Sessions' }} 
+    />
+    <Stack.Screen 
       name="AISettings" 
       component={AISettingsScreen}
       options={{ title: 'AI Configuration' }}
@@ -726,13 +731,6 @@ const DashboardStack = () => (
       name="LiveSessionTracking" 
       component={LiveSessionTracking}
       options={{ title: 'Live Session Tracking' }} 
-    />
-
-    {/* ADD THE MISSING SESSIONSCHEDULER SCREEN */}
-    <Stack.Screen 
-      name="SessionScheduler" 
-      component={SessionScheduler}
-      options={{ title: 'Session Scheduler' }} 
     />
 
     {/* Player Management */}
@@ -1641,10 +1639,10 @@ const CoachNavigator = () => {
         }}
       />
       <Tab.Screen 
-        name="Training" 
-        component={UpcomingSessions}
+        name="Sessions" 
+        component={SessionScheduler}
         options={{
-          tabBarLabel: 'Training',
+          tabBarLabel: 'Sessions',
         }}
       />
       <Tab.Screen 
