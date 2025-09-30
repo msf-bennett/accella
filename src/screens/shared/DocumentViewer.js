@@ -39,6 +39,7 @@ import { Slider } from '@react-native-community/slider';
 import { LinearGradient } from '../../components/shared/LinearGradient';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Clipboard } from 'react-native';
 
 // Design system imports
 import { COLORS } from '../../styles/colors';
@@ -165,6 +166,60 @@ if (!document && !routeParams.showAllDocuments) {
   const [scrollContentHeight, setScrollContentHeight] = useState(0);
   //const [isScrolling, setIsScrolling] = useState(false);
   const [fabScrollProgress, setFabScrollProgress] = useState(0);
+
+  // Handle copying document content
+const handleCopyContent = async () => {
+  if (!documentContent) {
+    setSnackbarMessage('No content available to copy');
+    setSnackbarVisible(true);
+    return;
+  }
+
+  try {
+    // Import Clipboard for web/mobile compatibility
+    const { Clipboard } = require('react-native');
+    
+    // Format the content with proper headers
+    const formattedContent = `
+DOCUMENT: ${document.originalName}
+TYPE: ${fileInfo.label}
+SIZE: ${formatFileSize(document.size)}
+UPLOADED: ${new Date(document.uploadedAt).toLocaleDateString()}
+
+────────────────────────────────────────────────────────────────
+
+CONTENT
+
+${documentContent}
+
+────────────────────────────────────────────────────────────────
+
+${documentStats ? `
+STATISTICS
+Words: ${documentStats.words.toLocaleString()}
+Lines: ${documentStats.lines.toLocaleString()}
+Estimated Read Time: ${formatReadingTime(documentStats.estimatedReadTime)}
+` : ''}
+
+Copied from Document Viewer • ${new Date().toLocaleDateString()}
+`.trim();
+
+    await Clipboard.setString(formattedContent);
+    
+    setSnackbarMessage('Document content copied to clipboard!');
+    setSnackbarVisible(true);
+    
+    // Track analytics
+    AnalyticsService.trackEvent('document_content_copied', {
+      documentType: fileType,
+      contentLength: documentContent.length,
+    });
+  } catch (error) {
+    console.error('Copy error:', error);
+    setSnackbarMessage('Failed to copy content');
+    setSnackbarVisible(true);
+  }
+};
 
   // Add these refs
   const scrollFabRef = useRef(null);
@@ -1122,9 +1177,47 @@ const renderScrollFab = () => {
           >
         <Surface style={[styles.textContent, { backgroundColor: dynamicStyles.backgroundColor }]}>
           <View style={styles.textHeader}>
-            <Text style={[styles.documentTitle, { color: dynamicStyles.color }]}>
-              Document Content
-            </Text>
+            {/* Header Row with Title and Copy Button */}
+            <View style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              marginBottom: SPACING.sm 
+            }}>
+              <Text style={[styles.documentTitle, { color: dynamicStyles.color }]}>
+                Document Content
+              </Text>
+              
+              {/* Copy Icon Card */}
+              <TouchableOpacity
+                onPress={handleCopyContent}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: COLORS.primary + '15',
+                  paddingHorizontal: SPACING.sm,
+                  paddingVertical: SPACING.xs,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: COLORS.primary + '30',
+                }}
+                activeOpacity={0.7}
+              >
+                <Icon name="content-copy" size={16} color={COLORS.primary} />
+                <Text style={[
+                  TEXT_STYLES.caption, 
+                  { 
+                    marginLeft: 4, 
+                    color: COLORS.primary,
+                    fontWeight: '600' 
+                  }
+                ]}>
+                  Copy
+                </Text>
+              </TouchableOpacity>
+            </View>
+            
+            {/* Stats Row - moved below */}
             {documentStats && (
               <View style={styles.statsRow}>
                 <Chip compact mode="flat" style={styles.statChip}>
