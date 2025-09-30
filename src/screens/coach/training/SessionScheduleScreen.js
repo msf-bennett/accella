@@ -937,84 +937,70 @@ const SessionScheduleScreen = ({ navigation, route }) => {
     );
   };
 
-  const renderTrainingPlan = () => {
-    // PRIORITY 1: Use the complete day context from parent
-    let contentToDisplay = session.rawContent || session.documentContent || '';
-    
-    // PRIORITY 2: If this is part of multiple sessions, show the day context
+const renderTrainingPlan = () => {
+  // PRIORITY: Use rawContent which should have COMPLETE day content
+  let contentToDisplay = session.rawContent || session.documentContent || '';
+  
+  // Fallback chain
+  if (!contentToDisplay || contentToDisplay.length < 100) {
     if (session.sessionsForDay && session.sessionsForDay.length > 0) {
-      // Use the first session's complete day context
       contentToDisplay = session.sessionsForDay[0].rawContent || contentToDisplay;
     }
-    
-    // PRIORITY 3: If we have sessionSpecificContent, that's more precise
-    if (session.sessionSpecificContent && session.sessionSpecificContent.length > contentToDisplay.length * 0.3) {
-      // Only use if it's substantial (at least 30% of day content)
-      contentToDisplay = session.sessionSpecificContent;
-    }
-    
-    return (
-      <View style={styles.tabContent}>
-      {/* Show day-specific information */}
+  }
+  
+  // DIAGNOSTIC: Log what we're displaying
+  console.log('SessionScheduleScreen: Rendering content for', session.day, {
+    rawContentLength: session.rawContent?.length || 0,
+    documentContentLength: session.documentContent?.length || 0,
+    displayLength: contentToDisplay.length,
+    preview: contentToDisplay.substring(0, 200)
+  });
+  
+  return (
+    <View style={styles.tabContent}>
+      {/* Show the ORIGINAL day header from document */}
       <Card style={styles.sectionCard}>
         <Card.Content>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
             <Icon name="today" size={24} color={colors.primary} />
             <Text style={[textStyles.h3, { marginLeft: spacing.sm }]}>
-              {session.day === 'week_overview' ? 'Week Overview' : 
-                `${session.day.charAt(0).toUpperCase() + session.day.slice(1)} Training`}
+              {session.dayHeader || `${session.day.charAt(0).toUpperCase() + session.day.slice(1)} Training`}
             </Text>
           </View>
           
-          {session.time && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs }}>
-              <Icon name="schedule" size={16} color={colors.textSecondary} />
-              <Text style={[textStyles.body2, { marginLeft: spacing.xs, color: colors.textSecondary }]}>
-                {session.time} • {session.duration} minutes
-              </Text>
-            </View>
-          )}
+          {/* Show metadata */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs }}>
+            <Icon name="schedule" size={16} color={colors.textSecondary} />
+            <Text style={[textStyles.body2, { marginLeft: spacing.xs, color: colors.textSecondary }]}>
+              {session.time} • {session.duration} minutes
+            </Text>
+          </View>
         </Card.Content>
       </Card>
 
-      {/* Display the complete session content */}
+      {/* Display COMPLETE content */}
       <Card style={styles.sectionCard}>
         <Card.Content>
           <Text style={[textStyles.h3, { marginBottom: spacing.md }]}>
             Session Details
           </Text>
-          <ScrollView style={{ maxHeight: 600 }} nestedScrollEnabled>
-            {contentToDisplay ? (
-              formatSessionContent(contentToDisplay, spacing, textStyles)
-            ) : (
-              <Text style={textStyles.body2}>No detailed content available for this session.</Text>
-            )}
-          </ScrollView>
+          
+          {contentToDisplay.length > 50 ? (
+            <ScrollView style={{ maxHeight: 600 }} nestedScrollEnabled>
+              {formatSessionContent(contentToDisplay, spacing, textStyles)}
+            </ScrollView>
+          ) : (
+            <View style={{ padding: spacing.md, backgroundColor: colors.warning + '20', borderRadius: 8 }}>
+              <Text style={[textStyles.body2, { color: colors.warning }]}>
+                ⚠️ Content extraction incomplete for this day.
+              </Text>
+              <Text style={[textStyles.caption, { marginTop: spacing.xs }]}>
+                Raw length: {session.rawContent?.length || 0} chars
+              </Text>
+            </View>
+          )}
         </Card.Content>
       </Card>
-
-      {/* Show all sessions for this day */}
-      {session.sessionsForDay && session.sessionsForDay.length > 1 && (
-        <Card style={styles.sectionCard}>
-          <Card.Content>
-            <Text style={[textStyles.h3, { marginBottom: spacing.md }]}>
-              Multiple Sessions Today
-            </Text>
-            <Text style={[textStyles.body2, { color: colors.textSecondary, marginBottom: spacing.sm }]}>
-              This day includes {session.sessionsForDay.length} training sessions
-            </Text>
-            {session.sessionsForDay.map((s, idx) => (
-              <Chip
-                key={idx}
-                style={[styles.chip, { marginBottom: spacing.xs }]}
-                mode="outlined"
-              >
-                Session {idx + 1}: {s.duration || 90} min
-              </Chip>
-            ))}
-          </Card.Content>
-        </Card>
-      )}
     </View>
   );
 };

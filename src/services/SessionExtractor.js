@@ -798,21 +798,52 @@ groupSessionsByDay(weekContent, daysInWeek) {
     const day = dayInfo.day;
     const dayLineIndex = dayInfo.lineIndex;
     
-    // Find the next day boundary
-    const nextDayIndex = index + 1 < daysInWeek.length 
-      ? daysInWeek[index + 1].lineIndex 
-      : lines.length;
+    // Find the next day boundary OR next major section
+    let nextBoundaryIndex = lines.length;
     
-    // Extract ALL content between this day and next day
-    const dayLines = lines.slice(dayLineIndex, nextDayIndex);
-    const completeDayContent = dayLines.join('\n').trim();
-    
-    // Store the complete content for this day
-    if (completeDayContent.length > 10) {  // Only if substantial content
-      sessionsByDay[day] = [completeDayContent];
+    // Check for next day
+    if (index + 1 < daysInWeek.length) {
+      nextBoundaryIndex = daysInWeek[index + 1].lineIndex;
     } else {
-      // Fallback for days with minimal content
-      sessionsByDay[day] = [`Training session for ${day}`];
+      // Look for major section markers if this is the last day
+      const majorSectionPatterns = [
+        /^(Week \d+|Alternative|Specific Drills)/i,
+        /^={3,}/,  // Line of equals signs
+        /^-{3,}/   // Line of dashes
+      ];
+      
+      for (let i = dayLineIndex + 1; i < lines.length; i++) {
+        if (majorSectionPatterns.some(pattern => pattern.test(lines[i].trim()))) {
+          nextBoundaryIndex = i;
+          break;
+        }
+      }
+    }
+    
+    // Extract ALL content between this day and next boundary
+    const dayLines = lines.slice(dayLineIndex, nextBoundaryIndex);
+    
+    // Clean up the content - remove the day header line itself from content
+    const contentLines = dayLines.slice(1); // Skip the header line
+    const completeDayContent = contentLines
+      .filter(line => line.trim().length > 0) // Remove empty lines
+      .join('\n')
+      .trim();
+    
+    // Only store if we have substantial content (more than just the header)
+    if (completeDayContent.length > 20) {
+      sessionsByDay[day] = [completeDayContent];
+      
+      console.log(`SessionExtractor: Captured ${day} content:`, {
+        startLine: dayLineIndex,
+        endLine: nextBoundaryIndex,
+        contentLength: completeDayContent.length,
+        firstChars: completeDayContent.substring(0, 100)
+      });
+    } else {
+      // Fallback with diagnostic
+      console.warn(`SessionExtractor: ${day} has minimal content, using fallback`);
+      sessionsByDay[day] = [`Training session for ${day}\n\nContent not found in expected location.`];
     }
   });
   
