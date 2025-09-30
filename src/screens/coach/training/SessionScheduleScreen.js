@@ -937,73 +937,108 @@ const SessionScheduleScreen = ({ navigation, route }) => {
     );
   };
 
-const renderTrainingPlan = () => {
-  // PRIORITY: Use rawContent which should have COMPLETE day content
-  let contentToDisplay = session.rawContent || session.documentContent || '';
-  
-  // Fallback chain
-  if (!contentToDisplay || contentToDisplay.length < 100) {
-    if (session.sessionsForDay && session.sessionsForDay.length > 0) {
-      contentToDisplay = session.sessionsForDay[0].rawContent || contentToDisplay;
-    }
-  }
-  
-  // DIAGNOSTIC: Log what we're displaying
-  console.log('SessionScheduleScreen: Rendering content for', session.day, {
-    rawContentLength: session.rawContent?.length || 0,
-    documentContentLength: session.documentContent?.length || 0,
-    displayLength: contentToDisplay.length,
-    preview: contentToDisplay.substring(0, 200)
-  });
-  
-  return (
-    <View style={styles.tabContent}>
-      {/* Show the ORIGINAL day header from document */}
-      <Card style={styles.sectionCard}>
-        <Card.Content>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
-            <Icon name="today" size={24} color={colors.primary} />
-            <Text style={[textStyles.h3, { marginLeft: spacing.sm }]}>
-              {session.dayHeader || `${session.day.charAt(0).toUpperCase() + session.day.slice(1)} Training`}
-            </Text>
-          </View>
-          
-          {/* Show metadata */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs }}>
-            <Icon name="schedule" size={16} color={colors.textSecondary} />
-            <Text style={[textStyles.body2, { marginLeft: spacing.xs, color: colors.textSecondary }]}>
-              {session.time} • {session.duration} minutes
-            </Text>
-          </View>
-        </Card.Content>
-      </Card>
+      const renderTrainingPlan = () => {
+        let contentToDisplay = session.rawContent || session.documentContent || '';
+        
+        if (!contentToDisplay || contentToDisplay.length < 100) {
+          if (session.sessionsForDay && session.sessionsForDay.length > 0) {
+            contentToDisplay = session.sessionsForDay[0].rawContent || contentToDisplay;
+          }
+        }
+        
+        console.log('SessionScheduleScreen: Rendering content for', session.day, {
+          rawContentLength: session.rawContent?.length || 0,
+          documentContentLength: session.documentContent?.length || 0,
+          displayLength: contentToDisplay.length,
+          preview: contentToDisplay.substring(0, 200)
+        });
+        
+        return (
+          <View style={styles.tabContent}>
+            {/* Day header */}
+            <Card style={styles.sectionCard}>
+              <Card.Content>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
+                  <Icon name="today" size={24} color={colors.primary} />
+                  <Text style={[textStyles.h3, { marginLeft: spacing.sm }]}>
+                    {session.dayHeader || `${session.day.charAt(0).toUpperCase() + session.day.slice(1)} Training`}
+                  </Text>
+                </View>
+                
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs }}>
+                  <Icon name="schedule" size={16} color={colors.textSecondary} />
+                  <Text style={[textStyles.body2, { marginLeft: spacing.xs, color: colors.textSecondary }]}>
+                    {session.time} • {session.duration} minutes
+                  </Text>
+                </View>
+              </Card.Content>
+            </Card>
 
-      {/* Display COMPLETE content */}
-      <Card style={styles.sectionCard}>
-        <Card.Content>
-          <Text style={[textStyles.h3, { marginBottom: spacing.md }]}>
-            Session Details
-          </Text>
-          
-          {contentToDisplay.length > 50 ? (
-            <ScrollView style={{ maxHeight: 600 }} nestedScrollEnabled>
-              {formatSessionContent(contentToDisplay, spacing, textStyles)}
-            </ScrollView>
-          ) : (
-            <View style={{ padding: spacing.md, backgroundColor: colors.warning + '20', borderRadius: 8 }}>
-              <Text style={[textStyles.body2, { color: colors.warning }]}>
-                ⚠️ Content extraction incomplete for this day.
-              </Text>
-              <Text style={[textStyles.caption, { marginTop: spacing.xs }]}>
-                Raw length: {session.rawContent?.length || 0} chars
-              </Text>
-            </View>
-          )}
-        </Card.Content>
-      </Card>
-    </View>
-  );
-};
+            {/* NEW: Source Document Navigation - Show when content is insufficient */}
+            {contentToDisplay.length < 100 && (
+              <Surface style={{
+                marginHorizontal: spacing.md,
+                marginBottom: spacing.md,
+                borderRadius: 12,
+                elevation: 2,
+                borderLeftWidth: 4,
+                borderLeftColor: colors.warning
+              }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    // Navigate back to plan details, then to document viewer
+                    navigation.navigate('TrainingPlanDetails', {
+                      planId: session.planId || route.params?.planId,
+                      openDocument: true
+                    });
+                  }}
+                  style={{ padding: spacing.md }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs }}>
+                    <Icon name="description" size={20} color={colors.warning} />
+                    <Text style={[textStyles.subtitle2, { marginLeft: spacing.sm, color: colors.warning }]}>
+                      Content Unavailable
+                    </Text>
+                  </View>
+                  <Text style={[textStyles.body2, { color: colors.textSecondary, marginBottom: spacing.sm }]}>
+                    Session content could not be extracted. View the source document for full details.
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Icon name="open-in-new" size={16} color={colors.primary} />
+                    <Text style={[textStyles.body2, { marginLeft: spacing.xs, color: colors.primary, fontWeight: '600' }]}>
+                      Open Source Document
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </Surface>
+            )}
+
+            {/* Session content */}
+            <Card style={styles.sectionCard}>
+              <Card.Content>
+                <Text style={[textStyles.h3, { marginBottom: spacing.md }]}>
+                  Session Details
+                </Text>
+                
+                {contentToDisplay.length > 50 ? (
+                  <ScrollView style={{ maxHeight: 600 }} nestedScrollEnabled>
+                    {formatSessionContent(contentToDisplay, spacing, textStyles)}
+                  </ScrollView>
+                ) : (
+                  <View style={{ padding: spacing.md, backgroundColor: colors.warning + '20', borderRadius: 8 }}>
+                    <Text style={[textStyles.body2, { color: colors.warning }]}>
+                      Content extraction incomplete for this day.
+                    </Text>
+                    <Text style={[textStyles.caption, { marginTop: spacing.xs }]}>
+                      Please view the source document for complete training details.
+                    </Text>
+                  </View>
+                )}
+              </Card.Content>
+            </Card>
+          </View>
+        );
+      };
 
   const renderProgress = () => (
     <View style={styles.tabContent}>

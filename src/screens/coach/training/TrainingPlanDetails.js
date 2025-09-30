@@ -554,12 +554,61 @@ const showDocumentOptions = (document) => {
 };
 
 const handleDailySessionPress = (dailySession, weekSession) => {
-  // Extract the raw content for this specific day
-  const dayContent = extractDayContent(weekSession, dailySession);
+  // PRIORITY 1: Use dailySession's own rawContent
+  let dayContent = dailySession.rawContent || dailySession.documentContent || '';
+  let contentSource = 'none';
   
-  // Check if this is a shared session
-  const isSharedSession = dailySession.sessionsForDay?.[0]?.isSharedSession || false;
-  const sharedWith = dailySession.sessionsForDay?.[0]?.sharedWith || [];
+  if (dayContent && dayContent.length >= 100) {
+    contentSource = 'dailySession.rawContent';
+  }
+  
+  // PRIORITY 2: Check sessionsForDay
+  if ((!dayContent || dayContent.length < 100) && 
+      dailySession.sessionsForDay && 
+      dailySession.sessionsForDay.length > 0) {
+    const firstSession = dailySession.sessionsForDay[0];
+    const sessionContent = firstSession.rawContent || firstSession.documentContent || '';
+    if (sessionContent.length >= 100) {
+      dayContent = sessionContent;
+      contentSource = 'sessionsForDay[0].rawContent';
+    }
+  }
+  
+  // PRIORITY 3: Extract from week content
+  if ((!dayContent || dayContent.length < 100) && weekSession.rawContent) {
+    console.log('TrainingPlanDetails: Attempting extraction for', dailySession.day, {
+      weekContentLength: weekSession.rawContent.length,
+      weekPreview: weekSession.rawContent.substring(0, 300)
+    });
+    
+    const extracted = extractDayContent(weekSession, dailySession);
+    if (extracted.rawContent.length >= 100) {
+      dayContent = extracted.rawContent;
+      contentSource = 'extracted from week';
+    } else {
+      console.warn('TrainingPlanDetails: Extraction failed for', dailySession.day, {
+        extractedLength: extracted.rawContent.length,
+        extractedPreview: extracted.rawContent
+      });
+    }
+  }
+  
+  // Final check
+  if (!dayContent || dayContent.length < 50) {
+    console.error('TrainingPlanDetails: INSUFFICIENT CONTENT for', dailySession.day, {
+      finalLength: dayContent?.length || 0,
+      dailySessionKeys: Object.keys(dailySession),
+      weekSessionHasRaw: !!weekSession.rawContent
+    });
+  }
+  
+  console.log('TrainingPlanDetails: Passing to SessionScheduleScreen:', {
+    day: dailySession.day,
+    contentLength: dayContent.length,
+    source: contentSource,
+    preview: dayContent.substring(0, 200),
+    isShared: dailySession.sessionsForDay?.[0]?.isSharedSession
+  });
   
   navigation.navigate('SessionScheduleScreen', {
     sessionData: {
@@ -569,23 +618,24 @@ const handleDailySessionPress = (dailySession, weekSession) => {
       planTitle: plan.title,
       academyName: dailySession.academyName || plan.title,
       
-      // Include complete raw content
-      rawContent: dayContent.rawContent,
-      documentContent: dayContent.documentContent,
+      // CRITICAL: Pass the complete content
+      rawContent: dayContent,
+      documentContent: dayContent,
+      
+      // Pass original day header for display
+      dayHeader: dailySession.sessionsForDay?.[0]?.dayHeader || 
+                dailySession.dayHeader ||
+                `${dailySession.day.charAt(0).toUpperCase() + dailySession.day.slice(1)} Training`,
       
       // Shared session metadata
-      isSharedSession: isSharedSession,
-      sharedWith: sharedWith,
-      sharedSessionNote: isSharedSession 
-        ? `This session is also used for: ${sharedWith.join(', ')}`
-        : null,
+      isSharedSession: dailySession.sessionsForDay?.[0]?.isSharedSession || false,
+      sharedWith: dailySession.sessionsForDay?.[0]?.sharedWith || [],
       
       // Week context
       weekTitle: weekSession.title,
       weekDescription: weekSession.description,
       weekFocus: weekSession.focus,
       
-      // All sessions for this day
       sessionsForDay: dailySession.sessionsForDay || [dailySession]
     },
     planTitle: plan.title,
@@ -600,25 +650,78 @@ const extractDayContent = (weekSession, dailySession) => {
     const dayName = dailySession.day.toLowerCase();
     const weekContent = weekSession.rawContent;
     
-    // Find this day's section in the week content
-    const dayPattern = new RegExp(`(${dayName}|${dailySession.day}).*?(?=(monday|tuesday|wednesday|thursday|friday|saturday|sunday|week \\d+|$))`, 'gis');
-    const match = weekContent.match(dayPattern);
+    // Build list of ALL possible day names to use as boundaries
+    const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     
-    if (match && match[0]) {
+    // Find where THIS day starts
+    const dayHeaderPatterns = [
+      new RegExp(`(^|\\n)\\s*(${dayName}|day.*${dayName}).*?\\n`, 'gim'),
+      new RegExp(`(^|\\n)\\s*##\\s*day.*${dayName}.*?\\n`, 'gim')
+    ];
+    
+    let dayStartIndex = -1;
+    let headerEndIndex = -1;
+    
+    for (const pattern of dayHeaderPatterns) {
+      pattern.lastIndex = 0; // Reset regex
+      const match = pattern.exec(weekContent);
+      if (match) {
+        dayStartIndex = match.index;
+        headerEndIndex = dayStartIndex + match[0].length;
+        break;
+      }
+    }
+    
+    if (dayStartIndex === -1) {
+      console.warn('TrainingPlanDetails: Could not find day start for', dayName);
       return {
-        rawContent: match[0].trim(),
-        documentContent: match[0].trim()
+        rawContent: `Training session for ${dayName}`,
+        documentContent: `Training session for ${dayName}`
+      };
+    }
+    
+    // Find where this day's content ENDS (next day header OR major section)
+    let dayEndIndex = weekContent.length;
+    
+    // Look for the NEXT day header (excluding the current day from the line)
+    const otherDays = allDays.filter(d => d !== dayName);
+    const nextDayPattern = new RegExp(
+      `\\n\\s*(${otherDays.join('|')}|day\\s*\\d+|week\\s*\\d+|alternative|specific)`,
+      'gim'
+    );
+    
+    nextDayPattern.lastIndex = headerEndIndex; // Start searching AFTER current day header
+    const nextDayMatch = nextDayPattern.exec(weekContent);
+    
+    if (nextDayMatch) {
+      dayEndIndex = nextDayMatch.index;
+    }
+    
+    // Extract the complete content (excluding the header line itself)
+    const completeDayContent = weekContent.substring(headerEndIndex, dayEndIndex).trim();
+    
+    console.log('extractDayContent: Extracted for', dayName, {
+      startIndex: dayStartIndex,
+      headerEndIndex: headerEndIndex,
+      endIndex: dayEndIndex,
+      contentLength: completeDayContent.length,
+      preview: completeDayContent.substring(0, 200)
+    });
+    
+    if (completeDayContent.length > 50) {
+      return {
+        rawContent: completeDayContent,
+        documentContent: completeDayContent
       };
     }
   }
   
   // Fallback to session's own content
   return {
-    rawContent: dailySession.rawContent || dailySession.documentContent || 'Training session',
-    documentContent: dailySession.documentContent || dailySession.rawContent || 'Training session'
+    rawContent: dailySession.rawContent || dailySession.documentContent || `Training session for ${dailySession.day}`,
+    documentContent: dailySession.documentContent || dailySession.rawContent || `Training session for ${dailySession.day}`
   };
 };
-
 
 const handleScheduleSession = (session) => {
   navigation.navigate('SessionScheduler', {
