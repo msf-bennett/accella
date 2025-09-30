@@ -18,6 +18,9 @@ import { initializeFirebaseApp, setupAutoSyncRetry } from './src/config/firebase
 // NEW: AI Service imports
 import AIService from './src/services/AIService';
 
+// NEW: SessionProvider import
+import { SessionProvider } from './src/contexts/SessionContext';
+
 // Type for the dispatch function
 import type { AppDispatch } from './src/store/store';
 
@@ -271,33 +274,35 @@ export default function App(): React.ReactElement {
       <Provider store={store}>
         <AppInitializer>
           <PaperProvider theme={theme}>
-            <NavigationContainer>
-              <StatusBar barStyle="default" />
-              
-              <OfflineSyncManager />
-              <AppNavigator />
-              
-              {/* Enhanced status indicators */}
-              {(__DEV__ || firebaseMode === 'offline' || aiStatus !== 'ready') && (
-                <View style={styles.statusContainer}>
-                  {firebaseMode === 'offline' && (
-                    <View style={styles.offlineIndicator}>
-                      <Text style={styles.offlineText}>
-                        Running in offline mode
-                        {initializationError && ` (${initializationError})`}
-                      </Text>
-                    </View>
-                  )}
-                  {aiStatus !== 'ready' && __DEV__ && (
-                    <View style={[styles.offlineIndicator, styles.aiIndicator]}>
-                      <Text style={styles.offlineText}>
-                        AI: {aiStatus}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </NavigationContainer>
+            <SessionProvider>
+              <NavigationContainer>
+                <StatusBar barStyle="default" />
+                
+                <OfflineSyncManager />
+                <AppNavigator />
+                
+                {/* Enhanced status indicators */}
+                {(__DEV__ || firebaseMode === 'offline' || aiStatus !== 'ready') && (
+                  <View style={styles.statusContainer}>
+                    {firebaseMode === 'offline' && (
+                      <View style={styles.offlineIndicator}>
+                        <Text style={styles.offlineText}>
+                          Running in offline mode
+                          {initializationError && ` (${initializationError})`}
+                        </Text>
+                      </View>
+                    )}
+                    {aiStatus !== 'ready' && __DEV__ && (
+                      <View style={[styles.offlineIndicator, styles.aiIndicator]}>
+                        <Text style={styles.offlineText}>
+                          AI: {aiStatus}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </NavigationContainer>
+            </SessionProvider>
           </PaperProvider>
         </AppInitializer>
       </Provider>

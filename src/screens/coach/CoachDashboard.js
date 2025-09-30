@@ -33,6 +33,7 @@ import { BlurView } from '../../components/shared/BlurView';
 import DocumentProcessor from '../../services/DocumentProcessor';
 import { calculateSessionCounts } from '../../utils/sessionCounters';
 import SessionExtractor from '../../services/SessionExtractor';
+import { useSessionCounts } from '../../contexts/SessionContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../../styles/colors';
 import { SPACING } from '../../styles/layout';
@@ -55,11 +56,12 @@ const CoachDashboard = ({ navigation }) => {
   const slideAnim = useRef(new Animated.Value(50)).current;
   const [sessionCarouselIndex, setSessionCarouselIndex] = useState(0);
   const [planCarouselIndex, setPlanCarouselIndex] = useState(0);
-  const [todaySessions, setTodaySessions] = useState(0);
-  const [tomorrowSessions, setTomorrowSessions] = useState(0);
-  const [thisWeekSessions, setThisWeekSessions] = useState(0);
-  const [thisMonthSessions, setThisMonthSessions] = useState(0);
-  const [totalSessions, setTotalSessions] = useState(0);
+  const { sessionCounts, refreshSessionCounts, loading: countsLoading } = useSessionCounts();
+  //const [todaySessions, setTodaySessions] = useState(0);
+  //const [tomorrowSessions, setTomorrowSessions] = useState(0);
+  //const [thisWeekSessions, setThisWeekSessions] = useState(0);
+  //const [thisMonthSessions, setThisMonthSessions] = useState(0);
+  //const [totalSessions, setTotalSessions] = useState(0);
   const { user } = useSelector(state => state.auth);
   const { trainingPlans, sessions } = useSelector(state => state.training);
   const dispatch = useDispatch();
@@ -110,6 +112,7 @@ const CoachDashboard = ({ navigation }) => {
     }
   ];
 
+      // REPLACE lines 100-140 in CoachDashboard.js
       const updateSessionCounts = useCallback(async () => {
         try {
           const plans = await DocumentProcessor.getTrainingPlans();
@@ -124,14 +127,9 @@ const CoachDashboard = ({ navigation }) => {
                 const extractionResult = await SessionExtractor.extractSessionsFromDocument(sourceDoc, plan);
                 
                 if (extractionResult && extractionResult.sessions) {
-                  extractionResult.sessions.forEach((weekSession, weekIndex) => {
-                    allExtractedSessions.push({
-                      id: `week_${weekSession.id}`,
-                      date: calculateSessionDate(weekIndex + 1, 'monday'),
-                      time: '08:00'
-                    });
-                    
-                    if (weekSession.dailySessions) {
+                  extractionResult.sessions.forEach((weekSession) => {
+                    // ONLY add daily sessions, not week overviews
+                    if (weekSession.dailySessions && weekSession.dailySessions.length > 0) {
                       weekSession.dailySessions.forEach((dailySession) => {
                         allExtractedSessions.push({
                           id: `daily_${dailySession.id}`,
@@ -146,9 +144,10 @@ const CoachDashboard = ({ navigation }) => {
             }
           }
           
+          // Include manual todaySchedule sessions
           const counts = calculateSessionCounts(allExtractedSessions, todaySchedule);
           
-          setTotalSessions(counts.total);  // Set total count
+          setTotalSessions(counts.total);
           setTodaySessions(counts.today);
           setTomorrowSessions(counts.tomorrow);
           setThisWeekSessions(counts.thisWeek);
@@ -159,29 +158,27 @@ const CoachDashboard = ({ navigation }) => {
         }
       }, [todaySchedule]);
 
-  useEffect(() => {
-  // Animate components on load
-  Animated.parallel([
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }),
-    Animated.timing(slideAnim, {
-      toValue: 0,
-      duration: 800,
-      useNativeDriver: true,
-    }),
-  ]).start();
-  
-  // Replace calculateSessionCounts() with:
-  updateSessionCounts();
-  
-  // Update time slot
-  updateTimeSlot();
-  const interval = setInterval(updateTimeSlot, 60000);
-  return () => clearInterval(interval);
-}, [updateSessionCounts]); // Add dependency
+    useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+      // Refresh counts with todaySchedule
+      refreshSessionCounts(todaySchedule);
+      
+      updateTimeSlot();
+      const interval = setInterval(updateTimeSlot, 60000);
+      return () => clearInterval(interval);
+    }, [refreshSessionCounts, todaySchedule]);
 
   //coaching plan(s) counter
       const loadTrainingPlansCount = useCallback(async () => {
@@ -243,18 +240,18 @@ const CoachDashboard = ({ navigation }) => {
     };
 
     const onRefresh = async () => {
-      setRefreshing(true);
-      Vibration.vibrate(50);
-      
-      try {
-        await loadTrainingPlansCount();
-        await updateSessionCounts(); // Add this line
-      } catch (error) {
-        console.error('Error refreshing data:', error);
-      } finally {
-        setTimeout(() => setRefreshing(false), 1500);
-      }
-    };
+    setRefreshing(true);
+    Vibration.vibrate(50);
+    
+    try {
+      await loadTrainingPlansCount();
+      await refreshSessionCounts(todaySchedule);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setTimeout(() => setRefreshing(false), 1500);
+    }
+  };
 
     const getGreeting = () => {
       const hour = new Date().getHours();
@@ -280,7 +277,7 @@ const CoachDashboard = ({ navigation }) => {
       {
         icon: 'fitness-center',
         label: 'Total Sessions',
-        value: `${totalSessions}`,  // DYNAMIC TOTAL SESSIONS 
+        value: `${sessionCounts.total}`,  // USE CONTEXT
         subtitle: 'all sessions',
         color: '#45B7D1',
         trend: 'all time',
@@ -288,9 +285,9 @@ const CoachDashboard = ({ navigation }) => {
       },
       {
         icon: 'today',
-        label: todaySessions === 0 ? 'No sessions' : 'Today',
-        value: todaySessions === 0 ? 'today' : `${todaySessions}`,
-        subtitle: todaySessions === 0 ? 'free day' : 'sessions today',
+        label: sessionCounts.today === 0 ? 'No sessions' : 'Today',
+        value: sessionCounts.today === 0 ? 'today' : `${sessionCounts.today}`,
+        subtitle: sessionCounts.today === 0 ? 'free day' : 'sessions today',
         color: '#4ECDC4',
         trend: 'tap to view',
         onPress: () => navigation.navigate('SessionScheduler', { filter: 'today' })
@@ -298,7 +295,7 @@ const CoachDashboard = ({ navigation }) => {
       {
         icon: 'wb-sunny',
         label: 'Tomorrow',
-        value: `${tomorrowSessions}`,
+        value: `${sessionCounts.tomorrow}`,
         subtitle: 'upcoming',
         color: '#FF9800',
         trend: 'next day',
@@ -307,7 +304,7 @@ const CoachDashboard = ({ navigation }) => {
       {
         icon: 'date-range',
         label: 'This Week',
-        value: `${thisWeekSessions}`,
+        value: `${sessionCounts.thisWeek}`,
         subtitle: 'sessions',
         color: '#9C27B0',
         trend: '7 days',
@@ -316,7 +313,7 @@ const CoachDashboard = ({ navigation }) => {
       {
         icon: 'calendar-today',
         label: 'This Month',
-        value: `${thisMonthSessions}`,
+        value: `${sessionCounts.thisMonth}`,
         subtitle: 'sessions',
         color: '#2196F3',
         trend: '30 days',

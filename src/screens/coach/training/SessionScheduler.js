@@ -39,6 +39,7 @@ import SessionExtractor from '../../../services/SessionExtractor';
 import DocumentProcessor from '../../../services/DocumentProcessor';
 import SessionScheduleScreen from './SessionScheduleScreen';
 import AIService from '../../../services/AIService.js';
+import { useSessionCounts } from '../../../contexts/SessionContext';
 // Design system
 import { COLORS } from '../../../styles/colors';
 import { SPACING } from '../../../styles/spacing';
@@ -111,7 +112,8 @@ if (Platform.OS === 'web') {
 
 const { width, height } = Dimensions.get('window');
 
-const SessionScheduler = ({ navigation, route  }) => {
+const SessionScheduler = ({ navigation, route }) => {
+  const { refreshSessionCounts } = useSessionCounts();
   const COLORS_FALLBACK = {
     primary: '#667eea',
     secondary: '#764ba2',
@@ -229,141 +231,86 @@ const SessionScheduler = ({ navigation, route  }) => {
   }, [route.params]);
 
  const initializeSessionData = async () => {
-  try {
-    setLoading(true);
-    console.log('Initializing session data...');
-
-    // Load training plans
-    const plans = await DocumentProcessor.getTrainingPlans();
-    setTrainingPlans(plans);
-    console.log('Loaded training plans:', plans.length);
-
-    // Extract sessions from all training plans with extracted sessions
-    const allExtractedSessions = [];
-    
-    for (const plan of plans) {
-      try {
-        console.log('Processing plan:', plan.title);
-        
-        // Check if plan has a source document and can extract sessions
-        if (plan.sourceDocument) {
-          const documents = await DocumentProcessor.getStoredDocuments();
-          const sourceDoc = documents.find(doc => doc.id === plan.sourceDocument);
-          
-          if (sourceDoc) {
-            console.log('Found source document for plan:', plan.title);
-            
-            // Extract sessions from the document
-            const extractionResult = await SessionExtractor.extractSessionsFromDocument(sourceDoc, plan);
-            
-            if (extractionResult && extractionResult.sessions) {
-              // Convert weekly sessions to individual daily sessions
-              extractionResult.sessions.forEach((weekSession, weekIndex) => {
-                // Add the week session itself
-                const weekSessionData = {
-                  id: `week_${weekSession.id}`,
-                  title: `${plan.title} - ${weekSession.title}`,
-                  day: 'week_overview',
-                  date: calculateSessionDate(weekIndex + 1, 'monday'),
-                  time: '08:00',
-                  duration: weekSession.totalDuration || 120,
-                  location: 'Training Facility',
-                  type: 'Weekly Plan',
-                  participants: 15,
-                  status: 'scheduled',
-                  academyName: plan.title,
-                  sport: plan.category || 'General',
-                  ageGroup: extractionResult.academyInfo?.ageGroup || 'Youth',
-                  difficulty: plan.difficulty || 'intermediate',
-                  weekNumber: weekSession.weekNumber,
-                  weekData: weekSession,
-                  planTitle: plan.title,
-                  sourcePlan: plan.id,
-                  sourceDocument: sourceDoc.id,
-                  isWeekOverview: true,
-                  focus: weekSession.focus || [],
-                  notes: weekSession.description || '',
-                  activities: [],
-                  drills: [],
-                  objectives: []
-                };
-                
-                allExtractedSessions.push(weekSessionData);
-
-                // Add individual daily sessions
-                if (weekSession.dailySessions && weekSession.dailySessions.length > 0) {
-                  weekSession.dailySessions.forEach((dailySession, dayIndex) => {
-                    const enhancedDailySession = {
-                      ...dailySession,
-                      id: `daily_${dailySession.id}`,
-                      title: `${plan.title} - Week ${weekSession.weekNumber}, ${dailySession.day.charAt(0).toUpperCase() + dailySession.day.slice(1)} Training`,
-                      academyName: plan.title,
-                      sport: plan.category || 'General',
-                      planTitle: plan.title,
-                      sourcePlan: plan.id,
-                      sourceDocument: sourceDoc.id,
-                      weekData: weekSession,
-                      parentWeekSession: weekSessionData.id,
-                      isWeekOverview: false
-                    };
-                    
-                    allExtractedSessions.push(enhancedDailySession);
-                  });
-                }
-              });
-              
-              console.log('Extracted sessions for plan:', plan.title, 'Total sessions:', allExtractedSessions.length);
-            }
-          } else {
-            console.warn('Source document not found for plan:', plan.title);
-          }
-        } else {
-          console.warn('No source document reference for plan:', plan.title);
-        }
-      } catch (error) {
-        console.error('Error processing plan:', plan.title, error.message);
-        // Continue processing other plans even if one fails
-      }
-    }
-
-    setExtractedSessions(allExtractedSessions);
-    console.log('Total extracted sessions:', allExtractedSessions.length);
-
-    // Combine with manual sessions
-    const combinedSessions = [
-      ...allExtractedSessions,
-      ...manualSessions
-    ].sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    setAllSessions(combinedSessions);
-
-    // Define userProfile BEFORE using it
-    const userProfile = {
-      ageGroup: user?.ageGroup || 'Youth',
-      sport: user?.preferredSport || 'General',
-      experience: user?.experience || 'intermediate'
-    };
-
-    // Get AI recommendations with error handling
     try {
-      const recommendations = await AIService.getSessionRecommendations(
-        allExtractedSessions,
-        userProfile
-      );
-      setAiRecommendations(recommendations);
-    } catch (error) {
-      console.warn('Could not load AI recommendations:', error);
-      setAiRecommendations([]);
-    }
+      setLoading(true);
+      console.log('Initializing session data...');
 
-  } catch (error) {
-    console.error('Error initializing session data:', error);
-    setSnackbarMessage('Failed to load session data');
-    setSnackbarVisible(true);
-  } finally {
-    setLoading(false);
-  }
-};
+      const plans = await DocumentProcessor.getTrainingPlans();
+      setTrainingPlans(plans);
+      
+      const allExtractedSessions = [];
+      
+      for (const plan of plans) {
+        try {
+          if (plan.sourceDocument) {
+            const documents = await DocumentProcessor.getStoredDocuments();
+            const sourceDoc = documents.find(doc => doc.id === plan.sourceDocument);
+            
+            if (sourceDoc) {
+              const extractionResult = await SessionExtractor.extractSessionsFromDocument(sourceDoc, plan);
+              
+              if (extractionResult?.sessions) {
+                extractionResult.sessions.forEach((weekSession) => {
+                  if (weekSession.dailySessions?.length > 0) {
+                    weekSession.dailySessions.forEach((dailySession) => {
+                      const enhancedDailySession = {
+                        ...dailySession,
+                        id: `daily_${dailySession.id}`,
+                        title: `${plan.title} - Week ${weekSession.weekNumber}, ${dailySession.day}`,
+                        planTitle: plan.title,
+                        sourcePlan: plan.id,
+                        sourceDocument: sourceDoc.id,
+                        weekData: weekSession,
+                      };
+                      
+                      allExtractedSessions.push(enhancedDailySession);
+                    });
+                  }
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error processing plan:', plan.title, error.message);
+        }
+      }
+
+      setExtractedSessions(allExtractedSessions);
+
+      const combinedSessions = [
+        ...allExtractedSessions,
+        ...manualSessions
+      ].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      setAllSessions(combinedSessions);
+
+      await refreshSessionCounts(combinedSessions);
+
+      const userProfile = {
+        ageGroup: user?.ageGroup || 'Youth',
+        sport: user?.preferredSport || 'General',
+        experience: user?.experience || 'intermediate'
+      };
+
+      try {
+        const recommendations = await AIService.getSessionRecommendations(
+          allExtractedSessions,
+          userProfile
+        );
+        setAiRecommendations(recommendations);
+      } catch (error) {
+        console.warn('Could not load AI recommendations:', error);
+        setAiRecommendations([]);
+      }
+
+    } catch (error) {
+      console.error('Error initializing session data:', error);
+      setSnackbarMessage('Failed to load session data');
+      setSnackbarVisible(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
 
