@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { StatusBar, View, Text, StyleSheet, AppState, Platform, AppStateStatus } from 'react-native';
+import { StatusBar, View, Text, StyleSheet, AppState, Platform, AppStateStatus, Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import type { NavigationContainerRef } from '@react-navigation/native';
 import { Provider, useDispatch } from 'react-redux';
@@ -66,6 +66,7 @@ Notifications.setNotificationHandler({
 const AppInitializer: React.FC<AppInitializerProps> = ({ children }) => {
   const dispatch = useDispatch<AppDispatch>();
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const initializeApp = async (): Promise<void> => {
@@ -101,14 +102,14 @@ const AppInitializer: React.FC<AppInitializerProps> = ({ children }) => {
         // Initialize Push Notifications
         try {
           console.log('🔔 Initializing push notifications...');
-          if (Platform.OS === 'web') {
-            // Web notification setup
-            await setupWebNotifications();
-          } else {
-            // Mobile notification setup
-            await PushNotificationService.initialize();
-          }
+          await PushNotificationService.initialize();
           console.log('✅ Push notifications initialized');
+
+          // Start automatic notification sync after initialization
+          setTimeout(() => {
+            startNotificationSync();
+          }, 5000); // Wait 5 seconds after app loads
+          
         } catch (notifError) {
           console.warn('⚠️ Push notification initialization failed:', notifError);
         }
@@ -159,11 +160,17 @@ const AppInitializer: React.FC<AppInitializerProps> = ({ children }) => {
       return () => {
         subscription.remove();
         window.removeEventListener('notificationClick', handleWebNotificationClick);
+        if (syncIntervalRef.current) {
+          clearInterval(syncIntervalRef.current);
+        }
       };
     }
 
     return () => {
       subscription.remove();
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
     };
   }, [dispatch]);
 
@@ -201,7 +208,7 @@ const AppInitializer: React.FC<AppInitializerProps> = ({ children }) => {
         }
       }
       
-      // Sync notifications
+      // Sync notifications - this will generate and send push notifications
       await NotificationService.syncNotifications(allSessions);
       
       // Update badge count
@@ -212,6 +219,19 @@ const AppInitializer: React.FC<AppInitializerProps> = ({ children }) => {
     } catch (error) {
       console.error('Error syncing notifications on foreground:', error);
     }
+  };
+
+  const startNotificationSync = (): void => {
+    console.log('🔄 Starting automatic notification sync...');
+    
+    // Initial sync
+    syncNotificationsOnForeground();
+    
+    // Set up periodic sync (every 5 minutes)
+    syncIntervalRef.current = setInterval(async () => {
+      console.log('🔄 Auto-syncing notifications...');
+      await syncNotificationsOnForeground();
+    }, 5 * 60 * 1000); // 5 minutes
   };
 
   return <>{children}</>;
@@ -258,40 +278,6 @@ const initializeAuthBridge = async (): Promise<void> => {
   }
 };
 
-// Setup web notifications
-const setupWebNotifications = async (): Promise<void> => {
-  try {
-    if (!('Notification' in window)) {
-      console.warn('Browser does not support notifications');
-      return;
-    }
-
-    let permission = Notification.permission;
-    
-    if (permission === 'default') {
-      // Request permission after a short delay (better UX)
-      setTimeout(async () => {
-        permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          console.log('✅ Web notification permission granted');
-          
-          // Show a welcome notification
-          new Notification('Acceilla Training', {
-            body: 'Notifications enabled! You\'ll receive updates about your training sessions.',
-            icon: '/favicon.png',
-          });
-        }
-      }, 3000);
-    } else if (permission === 'granted') {
-      console.log('✅ Web notifications already permitted');
-    } else {
-      console.warn('⚠️ Web notification permission denied');
-    }
-  } catch (error) {
-    console.error('Error setting up web notifications:', error);
-  }
-};
-
 const theme = {
   ...MD3LightTheme,
   colors: {
@@ -330,7 +316,7 @@ export default function App(): React.ReactElement {
   const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
 
   useEffect(() => {
-    let retryInterval: NodeJS.Timeout | null = null;
+    let retryInterval: ReturnType<typeof setTimeout> | null = null;
     
     const initializeApp = async (): Promise<void> => {
       console.log('Starting app initialization...');
@@ -370,7 +356,7 @@ export default function App(): React.ReactElement {
           const token = await PushNotificationService.initialize();
           if (token) {
             setPushToken(token);
-            console.log('✅ Push notifications ready, token:', token.substring(0, 20) + '...');
+            console.log('✅ Push notifications ready');
           }
         } catch (notifError) {
           console.warn('⚠️ Push notifications failed to initialize:', notifError);
@@ -391,14 +377,16 @@ export default function App(): React.ReactElement {
     const timer = setTimeout(initializeApp, 100);
 
     // Setup notification listeners
-    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-      console.log('📬 Notification received:', notification.request.content.title);
-    });
+    if (Platform.OS !== 'web') {
+      notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+        console.log('📬 Notification received:', notification.request.content.title);
+      });
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log('👆 Notification tapped:', response.notification.request.content.data);
-      handleNotificationResponse(response);
-    });
+      responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+        console.log('👆 Notification tapped:', response.notification.request.content.data);
+        handleNotificationResponse(response);
+      });
+    }
 
     return () => {
       clearTimeout(timer);
@@ -531,7 +519,7 @@ export default function App(): React.ReactElement {
                         </Text>
                       </View>
                     )}
-                    {!pushToken && __DEV__ && Device.isDevice && (
+                    {!pushToken && __DEV__ && (
                       <View style={[styles.offlineIndicator, styles.notifIndicator]}>
                         <Text style={styles.offlineText}>
                           Notifications: Not configured

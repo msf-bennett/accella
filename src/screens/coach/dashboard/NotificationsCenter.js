@@ -105,47 +105,69 @@ const NotificationCenter = ({ navigation }) => {
   }, []);
 
     const fetchNotifications = useCallback(async () => {
-    try {
-      // Get all sessions
-      const plans = await DocumentProcessor.getTrainingPlans();
-      const allExtractedSessions = [];
-      
-      for (const plan of plans) {
-        if (plan.sourceDocument) {
-          const documents = await DocumentProcessor.getStoredDocuments();
-          const sourceDoc = documents.find(doc => doc.id === plan.sourceDocument);
-          
-          if (sourceDoc) {
-            const extractionResult = await SessionExtractor.extractSessionsFromDocument(sourceDoc, plan);
+      try {
+        const plans = await DocumentProcessor.getTrainingPlans();
+        const allExtractedSessions = [];
+        
+        for (const plan of plans) {
+          if (plan.sourceDocument) {
+            const documents = await DocumentProcessor.getStoredDocuments();
+            const sourceDoc = documents.find(doc => doc.id === plan.sourceDocument);
             
-            if (extractionResult?.sessions) {
-              extractionResult.sessions.forEach((weekSession) => {
-                if (weekSession.dailySessions?.length > 0) {
-                  weekSession.dailySessions.forEach((dailySession) => {
-                    allExtractedSessions.push({
-                      ...dailySession,
-                      id: `daily_${dailySession.id}`,
-                      title: `${plan.title} - Week ${weekSession.weekNumber}, ${dailySession.day}`,
-                      planTitle: plan.title,
-                      sourcePlan: plan.id,
+            if (sourceDoc) {
+              const extractionResult = await SessionExtractor.extractSessionsFromDocument(sourceDoc, plan);
+              
+              if (extractionResult?.sessions) {
+                extractionResult.sessions.forEach((weekSession) => {
+                  if (weekSession.dailySessions?.length > 0) {
+                    weekSession.dailySessions.forEach((dailySession) => {
+                      // CRITICAL FIX: Extract from sessionsForDay if it exists
+                      if (dailySession.sessionsForDay && dailySession.sessionsForDay.length > 0) {
+                        // Use the FIRST session from sessionsForDay
+                        const actualSession = dailySession.sessionsForDay[0];
+                        allExtractedSessions.push({
+                          ...actualSession,
+                          id: `daily_${actualSession.id}`,
+                          planTitle: plan.title,
+                          sourcePlan: plan.id,
+                          academyName: plan.title || actualSession.academyName,
+                          // Ensure required fields exist with fallbacks
+                          title: actualSession.title || `${plan.title} - ${dailySession.day}`,
+                          time: actualSession.time || '09:00',
+                          date: dailySession.date || actualSession.date,
+                          day: dailySession.day,
+                        });
+                      } else {
+                        // Fallback: use dailySession directly but ensure all fields
+                        allExtractedSessions.push({
+                          ...dailySession,
+                          id: `daily_${dailySession.id}`,
+                          planTitle: plan.title,
+                          sourcePlan: plan.id,
+                          academyName: plan.title || dailySession.academyName,
+                          title: dailySession.title || `${plan.title} - ${dailySession.day}`,
+                          time: dailySession.time || '09:00',
+                        });
+                      }
                     });
-                  });
-                }
-              });
+                  }
+                });
+              }
             }
           }
         }
+        
+        console.log('📊 Extracted sessions sample:', allExtractedSessions.slice(0, 2));
+        
+        // Sync and get notifications
+        const syncedNotifications = await NotificationService.syncNotifications(allExtractedSessions);
+        setNotifications(syncedNotifications);
+        
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+        Alert.alert('Error', 'Failed to load notifications');
       }
-      
-      // Sync and get notifications
-      const syncedNotifications = await NotificationService.syncNotifications(allExtractedSessions);
-      setNotifications(syncedNotifications);
-      
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-      Alert.alert('Error', 'Failed to load notifications');
-    }
-  }, []);
+    }, []);
 
   const fetchNotificationSettings = useCallback(async () => {
     try {
