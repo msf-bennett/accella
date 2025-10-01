@@ -40,6 +40,7 @@ import DocumentProcessor from '../../../services/DocumentProcessor';
 import SessionScheduleScreen from './SessionScheduleScreen';
 import AIService from '../../../services/AIService.js';
 import NotificationService from '../../../services/NotificationService';
+import PushNotificationService from './PushNotificationService';
 import SessionProgressCard from '../../../components/training/SessionProgressCard';
 import SessionManager, { SessionStatus } from '../../../utils/sessionManager';
 import { useSessionCounts } from '../../../contexts/SessionContext';
@@ -144,7 +145,6 @@ const SessionScheduler = ({ navigation, route }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [sessionStatuses, setSessionStatuses] = useState({});
-  await NotificationService.syncNotifications(allSessions);
   const [selectedFilters, setSelectedFilters] = useState([]);
   const [selectedTimePeriod, setSelectedTimePeriod] = useState('all');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -273,6 +273,9 @@ const handleSessionAction = async (session, action) => {
             );
             setShowConfirmDialog(null);
             await loadSessionStatuses();
+
+            await NotificationService.syncNotifications(allSessions);
+
           }
         },
         {
@@ -364,6 +367,9 @@ const handleSessionAction = async (session, action) => {
       setAllSessions(combinedSessions);
 
       await refreshSessionCounts(combinedSessions);
+
+
+      await NotificationService.syncNotifications(combinedSessions);
 
       const userProfile = {
         ageGroup: user?.ageGroup || 'Youth',
@@ -540,21 +546,25 @@ const handleSessionPress = (session) => {
   };
 
   const handleMarkComplete = async (session) => {
-  try {
-    await SessionManager.updateSessionStatus(
-      session.id,
-      SessionStatus.COMPLETED,
-      { completedAt: new Date().toISOString() }
-    );
-    
-    await loadSessionStatuses();
-    
-    setSnackbarMessage('Session marked as completed! 🎉');
-    setSnackbarVisible(true);
-  } catch (error) {
-    Alert.alert('Error', 'Failed to update session status');
-  }
-};
+    try {
+      await SessionManager.updateSessionStatus(
+        session.id,
+        SessionStatus.COMPLETED,
+        { completedAt: new Date().toISOString() }
+      );
+      
+      await loadSessionStatuses();
+      await NotificationService.syncNotifications(allSessions);
+      
+      // Send feedback request notification
+      await PushNotificationService.sendSessionFeedbackRequest(session);
+      
+      setSnackbarMessage('Session marked as completed! 🎉');
+      setSnackbarVisible(true);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update session status');
+    }
+  };
 
 const handleSkipSession = async (session) => {
   Alert.alert(
@@ -573,6 +583,8 @@ const handleSkipSession = async (session) => {
             );
             
             await loadSessionStatuses();
+
+            await NotificationService.syncNotifications(allSessions);
             
             setSnackbarMessage('Session skipped');
             setSnackbarVisible(true);
@@ -593,6 +605,8 @@ const handleUndoStatus = async (session) => {
     );
     
     await loadSessionStatuses();
+
+    await NotificationService.syncNotifications(allSessions);
     
     setSnackbarMessage('Session status reset');
     setSnackbarVisible(true);
