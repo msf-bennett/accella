@@ -465,6 +465,40 @@ async extractWeeklyWithDaysStructure(text, structureAnalysis, academyInfo) {
   return sessions;
 }
 
+// Add this NEW method after extractWeeklyWithDaysStructure
+async calculateInitialSessionDates(sessions, startDate = null) {
+  try {
+    const baseDate = startDate ? new Date(startDate) : new Date();
+    
+    sessions.forEach((weekSession, weekIndex) => {
+      weekSession.dailySessions.forEach((daySession) => {
+        // Calculate actual date based on start date
+        const weekOffset = (weekIndex) * 7; // Start from week 0
+        const sessionDate = new Date(baseDate);
+        sessionDate.setDate(baseDate.getDate() + weekOffset);
+        
+        // Adjust to correct day of week
+        const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+          .indexOf(daySession.day.toLowerCase());
+        
+        if (dayIndex !== -1) {
+          const currentDay = sessionDate.getDay();
+          const daysToAdd = (dayIndex - currentDay + 7) % 7;
+          sessionDate.setDate(sessionDate.getDate() + daysToAdd);
+        }
+        
+        daySession.calculatedDate = sessionDate.toISOString().split('T')[0];
+        daySession.scheduledDate = daySession.calculatedDate;
+      });
+    });
+    
+    return sessions;
+  } catch (error) {
+    console.error('Error calculating session dates:', error);
+    return sessions;
+  }
+}
+
 async extractWeeklyOnlyStructure(text, structureAnalysis, academyInfo) {
   const sessions = [];
   const { weekStructure } = structureAnalysis;

@@ -261,6 +261,37 @@ async processTrainingPlan(documentId, options = {}) {
   }
 }
 
+// Add this NEW method
+async saveSessionSetupPreferences(documentId, preferences) {
+  try {
+    const documents = await this.getStoredDocuments();
+    const document = documents.find(doc => doc.id === documentId);
+    
+    if (document) {
+      document.sessionSetup = {
+        startingWeek: preferences.startingWeek,
+        startDate: preferences.startDate,
+        setupCompleted: true,
+        setupAt: new Date().toISOString()
+      };
+      
+      document.uploadMetadata = {
+        ...document.uploadMetadata,
+        setupCompleted: true
+      };
+      
+      await this.updateDocumentMetadata(document);
+      console.log('Session setup preferences saved:', preferences);
+      return document;
+    }
+    
+    throw new Error('Document not found');
+  } catch (error) {
+    console.error('Error saving session setup preferences:', error);
+    throw error;
+  }
+}
+
   // Web document selection using HTML input
 // In DocumentProcessor.js, replace the _selectDocumentWeb method:
 async _selectDocumentWeb() {
@@ -1258,40 +1289,37 @@ generateIntegrityRecommendations(checks) {
 }
 
 // 7. Enhanced storeDocument with integrity check
-// In DocumentProcessor.js, modify storeDocumentWithIntegrityCheck:
 async storeDocumentWithIntegrityCheck(file) {
   try {
-    //console.log('Starting document storage with integrity check...');
+    console.log('Starting document storage with integrity check...');
     
-    // Store the document first
     const document = await this.storeDocument(file);
-    //console.log('Document stored successfully:', {
-    //  id: document.id,
-    //  name: document.originalName,
-    //  hasWebData: !!document.webFileData
-    //});
+    console.log('Document stored successfully:', {
+      id: document.id,
+      name: document.originalName,
+      hasWebData: !!document.webFileData
+    });
     
-    // Perform integrity check
     const integrityResult = await this.verifyFileIntegrity(document);
     console.log('Integrity check completed:', integrityResult.overallStatus);
     
-    // Add integrity info to document metadata
     document.integrityCheck = {
       timestamp: integrityResult.timestamp,
       status: integrityResult.overallStatus,
       lastChecked: new Date().toISOString()
     };
     
-    // Update document with integrity results
     await this.updateDocumentMetadata(document);
-    //console.log('Document metadata updated with integrity results');
     
-    // Verify the document was stored correctly
-    const storedDocs = await this.getStoredDocuments();
-    const foundDoc = storedDocs.find(doc => doc.id === document.id);
-    console.log('Verification - document found in storage:', !!foundDoc);
+    // NEW: Store upload metadata for session setup
+    document.uploadMetadata = {
+      uploadedAt: new Date().toISOString(),
+      needsSessionSetup: true, // Flag for session setup prompt
+      setupCompleted: false
+    };
     
-    // Return both document and integrity results
+    await this.updateDocumentMetadata(document);
+    
     return {
       document,
       integrityResult

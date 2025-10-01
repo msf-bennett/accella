@@ -39,6 +39,9 @@ import SessionExtractor from '../../../services/SessionExtractor';
 import DocumentProcessor from '../../../services/DocumentProcessor';
 import SessionScheduleScreen from './SessionScheduleScreen';
 import AIService from '../../../services/AIService.js';
+import NotificationService from '../../../services/NotificationService';
+import SessionProgressCard from '../../../components/training/SessionProgressCard';
+import SessionManager, { SessionStatus } from '../../../utils/sessionManager';
 import { useSessionCounts } from '../../../contexts/SessionContext';
 // Design system
 import { COLORS } from '../../../styles/colors';
@@ -140,6 +143,8 @@ const SessionScheduler = ({ navigation, route }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [sessionStatuses, setSessionStatuses] = useState({});
+  await NotificationService.syncNotifications(allSessions);
   const [selectedFilters, setSelectedFilters] = useState([]);
   const [selectedTimePeriod, setSelectedTimePeriod] = useState('all');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -153,6 +158,9 @@ const SessionScheduler = ({ navigation, route }) => {
   const [manualSessions, setManualSessions] = useState([]);
   const [trainingPlans, setTrainingPlans] = useState([]);
   const [allSessions, setAllSessions] = useState([]);
+  const [completionStats, setCompletionStats] = useState(null);
+  const [missedByWeek, setMissedByWeek] = useState({});
+  const [showConfirmDialog, setShowConfirmDialog] = useState(null);
 
 
       const toggleDayExpanded = (dayId) => {
@@ -214,6 +222,77 @@ const SessionScheduler = ({ navigation, route }) => {
       useNativeDriver: true,
     }).start();
   }, []);
+
+  useEffect(() => {
+  loadSessionStatuses();
+}, []);
+
+const loadSessionStatuses = async () => {
+  try {
+    const statuses = await SessionManager.getSessionStatuses();
+    setSessionStatuses(statuses);
+    
+    // Load completion stats
+    if (allSessions.length > 0) {
+      const stats = await SessionManager.getCompletionStats(allSessions);
+      setCompletionStats(stats);
+      
+      const missed = await SessionManager.getMissedSessionsByWeek(allSessions);
+      setMissedByWeek(missed);
+    }
+  } catch (error) {
+    console.error('Error loading session statuses:', error);
+  }
+};
+
+const handleSessionAction = async (session, action) => {
+  const sessionState = SessionManager.getSessionState(session, sessionStatuses);
+  
+  if (action === 'start') {
+    handleStartSession(session);
+  } else if (action === 'recover') {
+    // Show confirmation dialog for missed sessions
+    setShowConfirmDialog({
+      session,
+      message: `Start ${session.day}'s session now?`,
+      options: [
+        {
+          text: 'Yes, start it',
+          onPress: () => {
+            setShowConfirmDialog(null);
+            handleStartSession(session);
+          }
+        },
+        {
+          text: 'Just mark complete',
+          onPress: async () => {
+            await SessionManager.updateSessionStatus(
+              session.id,
+              SessionStatus.COMPLETED,
+              { completedAt: new Date().toISOString(), recoveredMissed: true }
+            );
+            setShowConfirmDialog(null);
+            await loadSessionStatuses();
+          }
+        },
+        {
+          text: 'Skip permanently',
+          style: 'destructive',
+          onPress: () => handleSkipSession(session)
+        }
+      ]
+    });
+  } else if (action === 'early') {
+    Alert.alert(
+      'Start Early?',
+      `Do you want to start ${session.day}'s session early?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Start Now', onPress: () => handleStartSession(session) }
+      ]
+    );
+  }
+};
 
   useEffect(() => {
     const { filter, createNew } = route.params || {};
@@ -459,6 +538,68 @@ const handleSessionPress = (session) => {
       );
     }
   };
+
+  const handleMarkComplete = async (session) => {
+  try {
+    await SessionManager.updateSessionStatus(
+      session.id,
+      SessionStatus.COMPLETED,
+      { completedAt: new Date().toISOString() }
+    );
+    
+    await loadSessionStatuses();
+    
+    setSnackbarMessage('Session marked as completed! 🎉');
+    setSnackbarVisible(true);
+  } catch (error) {
+    Alert.alert('Error', 'Failed to update session status');
+  }
+};
+
+const handleSkipSession = async (session) => {
+  Alert.alert(
+    'Skip Session',
+    'Mark this session as skipped? You can still complete it later.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Skip',
+        onPress: async () => {
+          try {
+            await SessionManager.updateSessionStatus(
+              session.id,
+              SessionStatus.SKIPPED,
+              { skippedAt: new Date().toISOString() }
+            );
+            
+            await loadSessionStatuses();
+            
+            setSnackbarMessage('Session skipped');
+            setSnackbarVisible(true);
+          } catch (error) {
+            Alert.alert('Error', 'Failed to skip session');
+          }
+        }
+      }
+    ]
+  );
+};
+
+const handleUndoStatus = async (session) => {
+  try {
+    await SessionManager.updateSessionStatus(
+      session.id,
+      SessionStatus.SCHEDULED
+    );
+    
+    await loadSessionStatuses();
+    
+    setSnackbarMessage('Session status reset');
+    setSnackbarVisible(true);
+  } catch (error) {
+    Alert.alert('Error', 'Failed to reset status');
+  }
+};
 
   const getSessionTypeConfig = (type) => {
     return sessionTypes.find(t => t.id === type) || sessionTypes[0];
@@ -758,26 +899,32 @@ const handleSessionPress = (session) => {
       backgroundColor: COLORS?.primary || COLORS_FALLBACK.primary,
     },
     daySessionContainer: {
-  backgroundColor: COLORS.surface,
-  borderRadius: 8,
-  padding: SPACING.sm,
-  marginBottom: SPACING.sm,
-  borderLeftWidth: 3,
-  borderLeftColor: COLORS.primary,
-},
-dayHeader: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-},
-individualSessionItem: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  padding: SPACING.sm,
-  backgroundColor: 'rgba(0,0,0,0.02)',
-  borderRadius: 6,
-  marginBottom: SPACING.xs,
-},
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    padding: SPACING.sm,
+    marginBottom: SPACING.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
+  },
+  dayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  individualSessionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.sm,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    borderRadius: 6,
+    marginBottom: SPACING.xs,
+  },
+  weekSummary: {
+    margin: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: 8,
+    elevation: 2,
+  },
   };
 
 const renderHeader = () => (
@@ -908,16 +1055,74 @@ const renderHeader = () => (
   </View>
 );
 
+const renderWeekSummary = (weekNumber) => {
+  const weekSessions = filteredAndGrouped.filter(s => s.weekNumber === weekNumber);
+  if (weekSessions.length === 0) return null;
+  
+  const completed = weekSessions.filter(s => 
+    sessionStatuses[s.id]?.status === SessionStatus.COMPLETED
+  ).length;
+  
+  const nextSession = weekSessions.find(s => {
+    const state = SessionManager.getSessionState(s, sessionStatuses);
+    return state.state === 'today' || state.state === 'upcoming';
+  });
+  
+  const percentage = Math.round((completed / weekSessions.length) * 100);
+  const visualBar = SessionManager.createProgressBar(percentage);
+  
+  return (
+    <Surface style={styles.weekSummary}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={TEXT_STYLES.h3}>Week {weekNumber}</Text>
+        <Text style={TEXT_STYLES.body2}>
+          {completed}/{weekSessions.length} {visualBar} {percentage}%
+        </Text>
+      </View>
+      {nextSession && (
+        <Text style={[TEXT_STYLES.caption, { marginTop: 4 }]}>
+          Next: {nextSession.day} {nextSession.time}
+        </Text>
+      )}
+    </Surface>
+  );
+};
+
 const renderSessionCard = ({ item: session, index }) => {
   const typeConfig = getSessionTypeConfig(session.type || 'training');
   const isFromPlan = !session.isManual;
+  const sessionState = SessionManager.getSessionState(session, sessionStatuses);
   
-  // Get weekSession from the session's weekData property
+  // Get time info
+  const sessionTime = session.time || '08:00';
+  const endTime = (() => {
+    const [hours, mins] = sessionTime.split(':').map(Number);
+    const durationHours = Math.floor(session.duration / 60);
+    const durationMins = session.duration % 60;
+    const endHour = hours + durationHours;
+    const endMin = mins + durationMins;
+    return `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+  })();
+  
   const weekData = session.weekData || {};
   const dailySessions = weekData.dailySessions || [];
   
   const CardWrapper = Platform.OS === 'web' ? View : Animated.View;
   const cardProps = Platform.OS === 'web' ? {} : { entering: FadeInRight.delay(index * 50) };
+  
+  // Determine card style based on state
+  const getCardStyle = () => {
+    switch (sessionState.state) {
+      case 'completed':
+        return { borderLeftWidth: 4, borderLeftColor: COLORS.success };
+      case 'missed':
+        return { borderLeftWidth: 4, borderLeftColor: COLORS.error };
+      case 'today':
+        return { borderLeftWidth: 4, borderLeftColor: COLORS.primary };
+      default:
+        return {};
+    }
+  };
   
   return (
     <CardWrapper {...cardProps}>
@@ -925,7 +1130,7 @@ const renderSessionCard = ({ item: session, index }) => {
         onPress={() => handleSessionPress(session)}
         activeOpacity={0.7}
       >
-        <Card style={styles.sessionCard}>
+        <Card style={[styles.sessionCard, getCardStyle()]}>
           {/* Header with gradient */}
           <LinearGradient
             colors={[typeConfig.color, `${typeConfig.color}90`]}
@@ -934,6 +1139,7 @@ const renderSessionCard = ({ item: session, index }) => {
             <View style={styles.sessionHeader}>
               <View style={styles.sessionInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 20, marginRight: 8 }}>{sessionState.icon}</Text>
                   <Text style={[TEXT_STYLES.h4, { color: 'white', flex: 1 }]}>
                     {session.title}
                   </Text>
@@ -948,60 +1154,34 @@ const renderSessionCard = ({ item: session, index }) => {
                   )}
                 </View>
                 
-                {/* Academy and Sport Info */}
+                {/* State Label */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                  <Icon name="school" size={14} color="rgba(255,255,255,0.8)" />
-                  <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)', marginLeft: 4 }]}>
-                    {session.academyName}
+                  <Text style={[TEXT_STYLES.caption, { 
+                    color: 'white', 
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase'
+                  }]}>
+                    {sessionState.state === 'missed' && '⚠ MISSED'}
+                    {sessionState.state === 'today' && '▶ TODAY\'S SESSION'}
+                    {sessionState.state === 'completed' && '✓ COMPLETED'}
+                    {sessionState.state === 'upcoming' && '⋯ UPCOMING'}
                   </Text>
-                  {session.sport && (
-                    <>
-                      <Text style={{ color: 'rgba(255,255,255,0.6)', marginHorizontal: 8 }}>•</Text>
-                      <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)' }]}>
-                        {session.sport}
-                      </Text>
-                    </>
-                  )}
                 </View>
-
-                {/* Time and Location */}
+                
+                {/* Time Info */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                   <Icon name="access-time" size={14} color="rgba(255,255,255,0.8)" />
                   <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)', marginLeft: 4 }]}>
-                    {session.time} • {session.duration}min
+                    {formatSessionDate(session.date)}, {sessionTime}-{endTime} ({session.duration}min)
                   </Text>
-                  {session.location && (
-                    <>
-                      <Text style={{ color: 'rgba(255,255,255,0.6)', marginHorizontal: 8 }}>•</Text>
-                      <Icon name="location-on" size={14} color="rgba(255,255,255,0.8)" />
-                      <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)', marginLeft: 2 }]}>
-                        {session.location}
-                      </Text>
-                    </>
-                  )}
                 </View>
 
-                {/* Age Group and Difficulty */}
-                {(session.ageGroup || session.difficulty) && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                    {session.ageGroup && (
-                      <Chip
-                        compact
-                        style={{ backgroundColor: 'rgba(255,255,255,0.15)', marginRight: 8 }}
-                        textStyle={{ color: 'white', fontSize: 10 }}
-                      >
-                        {session.ageGroup}
-                      </Chip>
-                    )}
-                    {session.difficulty && (
-                      <Chip
-                        compact
-                        style={{ backgroundColor: getDifficultyColor(session.difficulty) + '40' }}
-                        textStyle={{ color: 'white', fontSize: 10 }}
-                      >
-                        {session.difficulty}
-                      </Chip>
-                    )}
+                {/* Session Focus Preview */}
+                {session.focus && session.focus.length > 0 && (
+                  <View style={{ marginTop: 4 }}>
+                    <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.7)' }]}>
+                      Focus: {session.focus[0]}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -1009,182 +1189,80 @@ const renderSessionCard = ({ item: session, index }) => {
           </LinearGradient>
 
           <Card.Content style={styles.cardContent}>
-
-                <Card.Content style={styles.cardContent}>
-              {/* ADD: Expand/Collapse button for week details */}
-              {dailySessions.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => toggleSessionExpanded(session.id)}
-                  style={{ 
-                    flexDirection: 'row', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    paddingVertical: SPACING.xs,
-                    marginBottom: SPACING.sm 
-                  }}
-                >
-                  <Text style={[TEXT_STYLES.body2, { fontWeight: '600' }]}>
-                    {expandedSessions[session.id] ? 'Hide' : 'Show'} Daily Sessions
-                  </Text>
-                  <Icon 
-                    name={expandedSessions[session.id] ? 'expand-less' : 'expand-more'} 
-                    size={20} 
-                    color={COLORS?.textSecondary || COLORS_FALLBACK.textSecondary}
-                  />
-                </TouchableOpacity>
-              )}
-          </Card.Content>
-
-            {/* Days Summary */}
-            <View style={{ marginBottom: SPACING.sm }}>
-              <Text style={[TEXT_STYLES.caption, { color: COLORS.textSecondary, marginBottom: 4 }]}>
-                Training Days: {dailySessions.length} days
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {dailySessions.map((daySession, idx) => (
-                  <Chip
-                    key={idx}
-                    compact
-                    mode="outlined"
-                    style={{ marginRight: 4, marginBottom: 4, height: 24 }}
-                    textStyle={{ fontSize: 10 }}
-                  >
-                    {daySession.day === 'week_overview' ? 'Overview' : daySession.day}
-                    {daySession.sessionsForDay && ` (${daySession.sessionsForDay.length})`}
-                  </Chip>
-                ))}
-              </View>
-            </View>
-
-            {expandedSessions[session.id] && dailySessions.length > 0 && (
-            <View style={{ marginTop: SPACING.md }}>
-              <Text style={[TEXT_STYLES.subtitle2, { fontWeight: 'bold', marginBottom: SPACING.sm }]}>
-                Daily Sessions:
-              </Text>
-              
-              {dailySessions.map((daySession, dayIdx) => (
-                <View key={dayIdx} style={styles.daySessionContainer}>
-                  <TouchableOpacity
-                    onPress={() => toggleDayExpanded(`${session.id}_${dayIdx}`)}
-                    style={styles.dayHeader}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[TEXT_STYLES.subtitle1, { fontWeight: '600' }]}>
-                        {daySession.day === 'week_overview' ? 'Week Overview' : 
-                          `${daySession.day.charAt(0).toUpperCase() + daySession.day.slice(1)}`}
-                      </Text>
-                      <Text style={[TEXT_STYLES.caption, { color: COLORS.textSecondary }]}>
-                        {daySession.sessionsForDay ? daySession.sessionsForDay.length : 1} session(s)
-                      </Text>
-                    </View>
-                    <IconButton
-                      icon={expandedDays[`${session.id}_${dayIdx}`] ? 'expand-less' : 'expand-more'}
-                      size={20}
-                    />
-                  </TouchableOpacity>
-
-                  {expandedDays[`${session.id}_${dayIdx}`] && daySession.sessionsForDay && (
-                    <View style={{ marginLeft: SPACING.md, marginTop: SPACING.sm }}>
-                      {daySession.sessionsForDay.map((innerSession, sessIdx) => (
-                        <TouchableOpacity
-                          key={sessIdx}
-                          onPress={() => handleSessionPress(innerSession)}
-                          style={styles.individualSessionItem}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <Text style={[TEXT_STYLES.body2, { fontWeight: '500' }]}>
-                              {innerSession.title}
-                            </Text>
-                            <Text style={[TEXT_STYLES.caption, { color: COLORS.textSecondary }]}>
-                              {innerSession.time} • {innerSession.duration}min
-                            </Text>
-                          </View>
-                          <Button
-                            mode="contained"
-                            compact
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              handleStartSession(innerSession);
-                            }}
-                            style={{ backgroundColor: COLORS.success }}
-                            contentStyle={{ height: 28 }}
-                          >
-                            Start
-                          </Button>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
-          </Card.Content>
-
-          {/* Body */}
-          <Card.Content style={styles.cardContent}>
-            {/* Participants */}
-            <View style={styles.participantsSection}>
-              <Icon name="group" size={16} color={COLORS?.textSecondary || COLORS_FALLBACK.textSecondary} />
-              <Text style={[TEXT_STYLES.caption, { marginLeft: 4, color: COLORS?.textSecondary || COLORS_FALLBACK.textSecondary }]}>
-                {session.participants || 0} participants
-              </Text>
-              {session.status && (
+            {/* Action Buttons Based on State */}
+            <View style={styles.cardActions}>
+              {sessionState.state === 'missed' && (
                 <>
-                  <Text style={{ color: COLORS?.textSecondary || COLORS_FALLBACK.textSecondary, marginHorizontal: 8 }}>•</Text>
-                  <Chip
+                  <Button
+                    mode="contained"
                     compact
-                    mode="outlined"
-                    style={{ height: 20 }}
-                    textStyle={{ fontSize: 10 }}
+                    onPress={() => handleSessionAction(session, 'recover')}
+                    style={{ backgroundColor: COLORS.warning, marginRight: SPACING.sm }}
+                    contentStyle={{ height: 32 }}
                   >
-                    {session.status.replace('_', ' ').toUpperCase()}
-                  </Chip>
+                    Do Now
+                  </Button>
+                  <Button
+                    mode="outlined"
+                    compact
+                    onPress={() => handleSkipSession(session)}
+                    contentStyle={{ height: 32 }}
+                  >
+                    Skip Permanently
+                  </Button>
                 </>
               )}
-            </View>
-
-            {/* Focus Areas */}
-            {session.focus && session.focus.length > 0 && (
-              <View style={{ marginTop: SPACING.sm }}>
-                <Text style={[TEXT_STYLES.caption, { color: COLORS?.textSecondary || COLORS_FALLBACK.textSecondary, marginBottom: 4 }]}>
-                  Focus Areas:
-                </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  {session.focus.slice(0, 3).map((focus, idx) => (
-                    <Chip
-                      key={idx}
-                      compact
-                      mode="outlined"
-                      style={{ marginRight: 4, marginBottom: 4, height: 24 }}
-                      textStyle={{ fontSize: 10 }}
-                    >
-                      {focus}
-                    </Chip>
-                  ))}
+              
+              {sessionState.state === 'today' && (
+                <Button
+                  mode="contained"
+                  compact
+                  onPress={() => handleSessionAction(session, 'start')}
+                  style={{ backgroundColor: COLORS.success }}
+                  contentStyle={{ height: 32 }}
+                  icon="play-arrow"
+                >
+                  Start Session
+                </Button>
+              )}
+              
+              {sessionState.state === 'upcoming' && (
+                <Button
+                  mode="outlined"
+                  compact
+                  onPress={() => handleSessionAction(session, 'early')}
+                  contentStyle={{ height: 32 }}
+                >
+                  Do Early
+                </Button>
+              )}
+              
+              {sessionState.state === 'completed' && (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Icon name="check-circle" size={20} color={COLORS.success} />
+                  <Text style={[TEXT_STYLES.body2, { marginLeft: 8, color: COLORS.success }]}>
+                    Completed
+                  </Text>
+                  <Button
+                    mode="text"
+                    compact
+                    onPress={() => handleUndoStatus(session)}
+                    contentStyle={{ height: 32 }}
+                    style={{ marginLeft: 'auto' }}
+                  >
+                    Undo
+                  </Button>
                 </View>
-              </View>
-            )}
-
-            {/* Actions */}
-            <View style={styles.cardActions}>
+              )}
+              
               <Button
-                mode="outlined"
+                mode="text"
                 compact
-                onPress={() => handleEditSession(session)}
-                style={{ marginRight: SPACING.sm }}
+                onPress={() => handleSessionPress(session)}
                 contentStyle={{ height: 32 }}
+                style={{ marginLeft: sessionState.state === 'completed' ? 0 : 'auto' }}
               >
-                {isFromPlan ? 'View Plan' : 'Edit'}
-              </Button>
-              <Button
-                mode="contained"
-                compact
-                onPress={() => handleStartSession(session)}
-                style={{ backgroundColor: COLORS?.success || COLORS_FALLBACK.success }}
-                contentStyle={{ height: 32 }}
-              >
-                Start Session
+                View Details
               </Button>
             </View>
           </Card.Content>
@@ -1195,10 +1273,8 @@ const renderSessionCard = ({ item: session, index }) => {
 };
 
   const renderDateSections = () => {
-  // Use filteredAndGrouped instead of filteredSessions
   const sessionsToDisplay = filteredAndGrouped;
   
-  // Group by date
   const grouped = sessionsToDisplay.reduce((groups, session) => {
     const date = session.date;
     if (!groups[date]) {
@@ -1209,42 +1285,70 @@ const renderSessionCard = ({ item: session, index }) => {
   }, {});
   
   const sections = Object.entries(grouped).map(([date, sessions]) => ({
-      date,
-      sessions,
-      data: sessions
-    }));
+    date,
+    sessions,
+    data: sessions
+  }));
 
-    return (
-      <FlatList
-        data={sections}
-        keyExtractor={(item) => item.date}
-        renderItem={({ item }) => (
-          <View style={styles.dateSection}>
-            <Text style={styles.dateHeader}>
-              {formatSessionDate(item.date)} ({item.sessions.length})
-            </Text>
-            <FlatList
-              data={item.sessions}
-              keyExtractor={(session) => session.id}
-              renderItem={renderSessionCard}
-              scrollEnabled={false}
-              showsVerticalScrollIndicator={false}
-            />
-          </View>
-        )}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[COLORS?.primary || COLORS_FALLBACK.primary]}
-            tintColor={COLORS?.primary || COLORS_FALLBACK.primary}
+  return (
+    <FlatList
+      data={sections}
+      keyExtractor={(item) => item.date}
+      ListHeaderComponent={() => (
+        <>
+          {completionStats && <SessionProgressCard stats={completionStats} />}
+          
+          {/* Missed Sessions Alert */}
+          {Object.keys(missedByWeek).length > 0 && (
+            <Card style={{ margin: SPACING.md, backgroundColor: COLORS.error + '10' }}>
+              <Card.Content>
+                <Text style={[TEXT_STYLES.subtitle1, { color: COLORS.error, fontWeight: 'bold' }]}>
+                  ⚠ Missed Sessions
+                </Text>
+                {Object.entries(missedByWeek).map(([weekNum, sessions]) => (
+                  <View key={weekNum} style={{ marginTop: SPACING.sm }}>
+                    <Text style={TEXT_STYLES.body2}>
+                      Week {weekNum}: {sessions.length} missed
+                    </Text>
+                    <View style={{ flexDirection: 'row', marginTop: SPACING.xs }}>
+                      <Button mode="contained-tonal" compact onPress={() => {/* TODO */}}>
+                        Review
+                      </Button>
+                    </View>
+                  </View>
+                ))}
+              </Card.Content>
+            </Card>
+          )}
+        </>
+      )}
+      renderItem={({ item }) => (
+        <View style={styles.dateSection}>
+          <Text style={styles.dateHeader}>
+            {formatSessionDate(item.date)} ({item.sessions.length})
+          </Text>
+          <FlatList
+            data={item.sessions}
+            keyExtractor={(session) => session.id}
+            renderItem={renderSessionCard}
+            scrollEnabled={false}
+            showsVerticalScrollIndicator={false}
           />
-        }
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
-      />
-    );
-  };
+        </View>
+      )}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[COLORS?.primary || COLORS_FALLBACK.primary]}
+          tintColor={COLORS?.primary || COLORS_FALLBACK.primary}
+        />
+      }
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 100 }}
+    />
+  );
+};
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -1409,6 +1513,38 @@ const renderSessionCard = ({ item: session, index }) => {
         >
           <Text style={{ color: 'white' }}>{snackbarMessage}</Text>
         </Snackbar>
+      </Portal>
+      {/* Confirmation Dialog */}
+      <Portal>
+        <Modal
+          visible={showConfirmDialog !== null}
+          onDismiss={() => setShowConfirmDialog(null)}
+          contentContainerStyle={{
+            backgroundColor: 'white',
+            padding: SPACING.lg,
+            margin: SPACING.lg,
+            borderRadius: 12,
+          }}
+        >
+          {showConfirmDialog && (
+            <>
+              <Text style={[TEXT_STYLES.h3, { marginBottom: SPACING.md }]}>
+                {showConfirmDialog.message}
+              </Text>
+              {showConfirmDialog.options.map((option, index) => (
+                <Button
+                  key={index}
+                  mode={option.style === 'destructive' ? 'outlined' : 'contained'}
+                  onPress={option.onPress}
+                  style={{ marginBottom: SPACING.sm }}
+                  buttonColor={option.style === 'destructive' ? COLORS.error : COLORS.primary}
+                >
+                  {option.text}
+                </Button>
+              ))}
+            </>
+          )}
+        </Modal>
       </Portal>
     </View>
   );

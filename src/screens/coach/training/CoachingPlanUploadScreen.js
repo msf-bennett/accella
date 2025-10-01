@@ -12,6 +12,8 @@ import {
 import { Card, Button, ProgressBar, Surface, IconButton, Chip } from 'react-native-paper';
 import DocumentProcessor from '../../../services/DocumentProcessor';
 import PlatformUtils from '../../../utils/PlatformUtils';
+import SessionSetupModal from '../../../components/settings/SessionSetupModal';
+import SessionManager from '../../../utils/sessionManager';
 import { COLORS, SPACING, TEXT_STYLES } from '../../../styles/themes';
 
 // Load platform-safe components
@@ -98,6 +100,8 @@ const CoachingPlanUploadScreen = ({ navigation }) => {
   const [documents, setDocuments] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [platformReady, setPlatformReady] = useState(false);
+  const [showSessionSetup, setShowSessionSetup] = useState(false);
+  const [pendingDocument, setPendingDocument] = useState(null);
   const [integrityResult, setIntegrityResult] = useState(null);
   const [showDocuments, setShowDocuments] = useState(true);
   const [clearedDocuments, setClearedDocuments] = useState(new Set());
@@ -171,11 +175,7 @@ const handleDocumentUpload = async () => {
     setUploadStatus('Opening file selector...');
     setIntegrityResult(null);
 
-    //console.log('Starting enhanced document upload process...');
-
-    // Step 1: Select document
     const file = await DocumentProcessor.selectDocument();
-    console.log('File selection result:', file ? 'File selected' : 'No file selected');
     
     if (!file) {
       setUploading(false);
@@ -186,12 +186,9 @@ const handleDocumentUpload = async () => {
     setUploadProgress(0.3);
     setUploadStatus('Analyzing document structure...');
 
-    // Step 2: Validate file before storage
     const validation = DocumentProcessor.validateFileForPlatform(file);
-    console.log('File validation result:', validation);
     
     if (!validation.isValid) {
-      console.error('File validation failed:', validation.errors);
       showValidationError(validation);
       setUploading(false);
       return;
@@ -200,21 +197,15 @@ const handleDocumentUpload = async () => {
     setUploadProgress(0.5);
     setUploadStatus('Storing file and analyzing structure...');
 
-    console.log('About to store document with enhanced analysis...');
-
-    // Step 3: Store with integrity check
     const result = await DocumentProcessor.storeDocumentWithIntegrityCheck(file);
-    console.log('Storage completed, analyzing document structure...');
 
     setUploadProgress(0.7);
     setUploadStatus('Performing deep structure analysis...');
 
-    // NEW Step 4: Analyze document structure immediately
     let structureAnalysis = null;
     try {
       const extractionResult = await DocumentProcessor.extractDocumentText(result.document);
       structureAnalysis = await DocumentProcessor.analyzeDocumentStructure(extractionResult.text, result.document);
-      //t structure analysis completed:', structureAnalysis);
     } catch (error) {
       console.warn('Structure analysis failed:', error);
     }
@@ -225,9 +216,6 @@ const handleDocumentUpload = async () => {
     setUploadProgress(0.9);
     setUploadStatus('Structure analysis complete');
 
-    console.log('About to navigate to processing with structure insights...');
-
-    // Generate enhanced academy preview with structure insights
     let academyPreview = null;
     try {
       academyPreview = await DocumentProcessor.previewAcademyInfo(result.document);
@@ -244,28 +232,58 @@ const handleDocumentUpload = async () => {
       console.warn('Could not generate enhanced academy preview:', error);
     }
 
-    // Step 5: Navigate to processing with structure insights
-    navigation.navigate('PlanProcessing', {
-      documentId: result.document.id,
-      academyPreview: academyPreview,
-      structureAnalysis: structureAnalysis, // NEW: Pass structure analysis
-      onComplete: (trainingPlan) => {
-        navigation.navigate('TrainingPlanLibrary', {
-          newPlanId: trainingPlan?.id,
-          showSuccess: true,
-          message: `"${academyPreview?.academyName || trainingPlan?.title || 'Training Plan'}" created successfully with enhanced AI analysis!`
-        });
-      }
+    // NEW: Show session setup modal before proceeding
+    setPendingDocument({
+      document: result.document,
+      academyPreview,
+      structureAnalysis
     });
+    setShowSessionSetup(true);
+    setUploading(false);
 
   } catch (error) {
     console.error('Enhanced upload failed with error:', error);
     const platformError = PlatformUtils.handlePlatformError(error, 'Enhanced Document Upload');
     showUploadError(platformError);
-  } finally {
     setUploading(false);
     setUploadProgress(0);
     setUploadStatus('');
+  }
+};
+
+const handleSessionSetupComplete = async (preferences) => {
+  try {
+    setShowSessionSetup(false);
+    setUploading(true);
+    setUploadStatus('Applying session preferences...');
+
+    // Save setup preferences
+    await DocumentProcessor.saveSessionSetupPreferences(
+      pendingDocument.document.id,
+      preferences
+    );
+
+    // Navigate to processing with setup info
+    navigation.navigate('PlanProcessing', {
+      documentId: pendingDocument.document.id,
+      academyPreview: pendingDocument.academyPreview,
+      structureAnalysis: pendingDocument.structureAnalysis,
+      sessionSetup: preferences,
+      onComplete: (trainingPlan) => {
+        navigation.navigate('TrainingPlanLibrary', {
+          newPlanId: trainingPlan?.id,
+          showSuccess: true,
+          message: `"${pendingDocument.academyPreview?.academyName || trainingPlan?.title || 'Training Plan'}" created successfully!`
+        });
+      }
+    });
+
+    setPendingDocument(null);
+  } catch (error) {
+    console.error('Session setup failed:', error);
+    Alert.alert('Error', 'Failed to apply session preferences');
+  } finally {
+    setUploading(false);
   }
 };
 
@@ -634,6 +652,18 @@ const handleRestoreDocuments = () => {
           ))}
         </View>
       )}
+
+      {/* Add before closing </ScrollView> */}
+        <SessionSetupModal
+          visible={showSessionSetup}
+          onDismiss={() => {
+            setShowSessionSetup(false);
+            setPendingDocument(null);
+          }}
+          onComplete={handleSessionSetupComplete}
+          totalWeeks={pendingDocument?.academyPreview?.weeksCount || 12}
+          documentName={pendingDocument?.document?.originalName || ''}
+        />
 
       {/* Show empty state or cleared documents info */}
       {documents.length === 0 && (

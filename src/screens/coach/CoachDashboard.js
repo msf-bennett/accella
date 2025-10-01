@@ -159,26 +159,26 @@ const CoachDashboard = ({ navigation }) => {
       }, [todaySchedule]);
 
     useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    
-      // Refresh counts with todaySchedule
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Only refresh on mount, not when refreshSessionCounts changes
       refreshSessionCounts(todaySchedule);
       
       updateTimeSlot();
       const interval = setInterval(updateTimeSlot, 60000);
       return () => clearInterval(interval);
-    }, [refreshSessionCounts, todaySchedule]);
+    }, []);
 
   //coaching plan(s) counter
       const loadTrainingPlansCount = useCallback(async () => {

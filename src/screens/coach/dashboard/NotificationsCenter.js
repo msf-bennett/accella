@@ -29,6 +29,10 @@ import {
   Switch,
 } from 'react-native-paper';
 import { BlurView } from '../../../components/shared/BlurView';
+import NotificationService from '../../../services/NotificationService';
+import DocumentProcessor from '../../../services/DocumentProcessor';
+import SessionExtractor from '../../../services/SessionExtractor';
+import SessionManager, { SessionStatus } from '../../../utils/sessionManager';
 import { LinearGradient } from '../../../components/shared/LinearGradient';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSelector, useDispatch } from 'react-redux';
@@ -100,85 +104,43 @@ const NotificationCenter = ({ navigation }) => {
     fetchNotificationSettings();
   }, []);
 
-  const fetchNotifications = useCallback(async () => {
+    const fetchNotifications = useCallback(async () => {
     try {
-      // Simulate API call - replace with actual API integration
-      const mockNotifications = [
-        {
-          id: '1',
-          type: 'session',
-          title: 'Session Reminder',
-          message: 'Morning Training starts in 30 minutes',
-          timestamp: new Date(Date.now() - 10 * 60 * 1000),
-          read: false,
-          priority: 'high',
-          actionable: true,
-          data: { sessionId: 's1' },
-          sender: { name: 'System', avatar: null },
-        },
-        {
-          id: '2',
-          type: 'message',
-          title: 'New Message from Alex Johnson',
-          message: 'Coach, I won\'t be able to make it to today\'s practice due to a doctor\'s appointment.',
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-          read: false,
-          priority: 'medium',
-          actionable: true,
-          data: { playerId: 'p1', chatId: 'c1' },
-          sender: { name: 'Alex Johnson', avatar: 'https://via.placeholder.com/40' },
-        },
-        {
-          id: '3',
-          type: 'payment',
-          title: 'Payment Received',
-          message: '$150 payment received from Sarah Smith for monthly training package',
-          timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000),
-          read: true,
-          priority: 'medium',
-          actionable: false,
-          data: { amount: 150, playerId: 'p2' },
-          sender: { name: 'Payment System', avatar: null },
-        },
-        {
-          id: '4',
-          type: 'system',
-          title: 'App Update Available',
-          message: 'Version 2.1.0 is now available with new performance tracking features',
-          timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000),
-          read: true,
-          priority: 'low',
-          actionable: true,
-          data: { version: '2.1.0' },
-          sender: { name: 'App Store', avatar: null },
-        },
-        {
-          id: '5',
-          type: 'sessions',
-          title: 'Training Plan Completed',
-          message: 'Mike Wilson has completed the 4-week strength training program',
-          timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000),
-          read: false,
-          priority: 'medium',
-          actionable: true,
-          data: { playerId: 'p3', planId: 'plan1' },
-          sender: { name: 'Training System', avatar: null },
-        },
-        {
-          id: '6',
-          type: 'message',
-          title: 'Parent Inquiry',
-          message: 'Lisa Davis\'s mother asked about the upcoming tournament schedule',
-          timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000),
-          read: true,
-          priority: 'medium',
-          actionable: true,
-          data: { playerId: 'p4', parentId: 'parent1' },
-          sender: { name: 'Mary Davis', avatar: 'https://via.placeholder.com/40' },
-        },
-      ];
+      // Get all sessions
+      const plans = await DocumentProcessor.getTrainingPlans();
+      const allExtractedSessions = [];
       
-      setNotifications(mockNotifications);
+      for (const plan of plans) {
+        if (plan.sourceDocument) {
+          const documents = await DocumentProcessor.getStoredDocuments();
+          const sourceDoc = documents.find(doc => doc.id === plan.sourceDocument);
+          
+          if (sourceDoc) {
+            const extractionResult = await SessionExtractor.extractSessionsFromDocument(sourceDoc, plan);
+            
+            if (extractionResult?.sessions) {
+              extractionResult.sessions.forEach((weekSession) => {
+                if (weekSession.dailySessions?.length > 0) {
+                  weekSession.dailySessions.forEach((dailySession) => {
+                    allExtractedSessions.push({
+                      ...dailySession,
+                      id: `daily_${dailySession.id}`,
+                      title: `${plan.title} - Week ${weekSession.weekNumber}, ${dailySession.day}`,
+                      planTitle: plan.title,
+                      sourcePlan: plan.id,
+                    });
+                  });
+                }
+              });
+            }
+          }
+        }
+      }
+      
+      // Sync and get notifications
+      const syncedNotifications = await NotificationService.syncNotifications(allExtractedSessions);
+      setNotifications(syncedNotifications);
+      
     } catch (error) {
       console.error('Error fetching notifications:', error);
       Alert.alert('Error', 'Failed to load notifications');
@@ -209,45 +171,86 @@ const NotificationCenter = ({ navigation }) => {
   }, [fetchNotifications]);
 
   const handleNotificationPress = useCallback((notification) => {
-    if (!notification.read) {
-      markAsRead(notification.id);
-    }
+  if (!notification.read) {
+    markAsRead(notification.id);
+  }
 
-    if (notification.actionable) {
-      switch (notification.type) {
-        case 'session':
-          navigation.navigate('SessionDetails', { sessionId: notification.data.sessionId });
-          break;
-        case 'message':
-          navigation.navigate('Chat', { playerId: notification.data.playerId });
-          break;
-        case 'payment':
-          navigation.navigate('PaymentDetails', { playerId: notification.data.playerId });
-          break;
-        case 'system':
-          if (notification.data.version) {
-            Alert.alert('Update App', 'Would you like to update to the latest version?', [
-              { text: 'Later', style: 'cancel' },
-              { text: 'Update', onPress: () => console.log('Update app') },
-            ]);
-          }
-          break;
-        default:
-          break;
-      }
+  if (notification.actionable) {
+    switch (notification.type) {
+      case 'session':
+        if (notification.data.isTomorrow) {
+          Alert.alert(
+            'Upcoming Session',
+            `You have "${notification.data.sessionData.title}" tomorrow at ${notification.data.sessionData.time}`,
+            [
+              { text: 'OK' },
+              { 
+                text: 'View Details', 
+                onPress: () => navigation.navigate('SessionScheduleScreen', {
+                  sessionData: notification.data.sessionData,
+                  planTitle: notification.data.sessionData.planTitle,
+                  academyName: notification.data.sessionData.academyName
+                })
+              }
+            ]
+          );
+        } else {
+          navigation.navigate('SessionScheduleScreen', {
+            sessionData: notification.data.sessionData,
+            planTitle: notification.data.sessionData.planTitle,
+            academyName: notification.data.sessionData.academyName
+          });
+        }
+        break;
+        
+      case 'missed_session':
+        Alert.alert(
+          'Missed Session',
+          `You missed "${notification.data.sessionData.title}". Would you like to mark it as done or schedule for later?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Mark as Done',
+              onPress: async () => {
+                await SessionManager.updateSessionStatus(
+                  notification.data.sessionData.id,
+                  SessionStatus.COMPLETED,
+                  { completedAt: new Date().toISOString(), recoveredMissed: true }
+                );
+                await deleteNotification(notification.id);
+                fetchNotifications(); // Refresh
+              }
+            },
+            {
+              text: 'View Details',
+              onPress: () => navigation.navigate('SessionScheduleScreen', {
+                sessionData: notification.data.sessionData,
+                planTitle: notification.data.sessionData.planTitle,
+                academyName: notification.data.sessionData.academyName
+              })
+            }
+          ]
+        );
+        break;
+        
+      case 'message':
+        navigation.navigate('Chat', { playerId: notification.data.playerId });
+        break;
+      case 'payment':
+        navigation.navigate('PaymentDetails', { playerId: notification.data.playerId });
+        break;
+      default:
+        break;
     }
-  }, [navigation]);
+  }
+}, [navigation]);
 
-  const markAsRead = useCallback((notificationId) => {
-    setNotifications(prev => 
-      prev.map(notification => 
-        notification.id === notificationId 
-          ? { ...notification, read: true }
-          : notification
-      )
-    );
-    Vibration.vibrate(25);
-  }, []);
+
+    const markAsRead = useCallback(async (notificationId) => {
+    const updated = await NotificationService.markAsRead(notificationId);
+        setNotifications(updated);
+        Vibration.vibrate(25);
+      }, []);
 
   const markAllAsRead = useCallback(() => {
     Alert.alert(
@@ -268,7 +271,7 @@ const NotificationCenter = ({ navigation }) => {
     );
   }, []);
 
-  const deleteNotification = useCallback((notificationId) => {
+  const deleteNotification = useCallback(async (notificationId) => {
     Alert.alert(
       'Delete Notification',
       'Are you sure you want to delete this notification?',
@@ -277,10 +280,29 @@ const NotificationCenter = ({ navigation }) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setNotifications(prev => 
-              prev.filter(notification => notification.id !== notificationId)
-            );
+          onPress: async () => {
+            const updated = await NotificationService.deleteNotification(notificationId);
+            setNotifications(updated);
+            Vibration.vibrate(100);
+          },
+        },
+      ]
+    );
+  }, []);
+
+  // Add new function for clearing all
+  const handleClearAll = useCallback(async () => {
+    Alert.alert(
+      'Clear All Notifications',
+      'This will remove all notifications. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            await NotificationService.clearAllNotifications();
+            setNotifications([]);
             Vibration.vibrate(100);
           },
         },
@@ -703,6 +725,16 @@ const NotificationCenter = ({ navigation }) => {
           >
             Delete
           </Button>
+          <Button
+          mode="outlined"
+          onPress={handleClearAll}
+          style={{ marginTop: SPACING.md }}
+          buttonColor={COLORS.error + '20'}
+          textColor={COLORS.error}
+          icon="delete-sweep"
+        >
+          Clear All Notifications
+        </Button>
         </View>
       </Modal>
     </Portal>

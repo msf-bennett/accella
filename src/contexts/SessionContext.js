@@ -54,11 +54,17 @@ export const SessionProvider = ({ children }) => {
       return counts;
     } catch (error) {
       console.error('Error refreshing session counts:', error);
-      return sessionCounts;
+      return {
+        total: 0,
+        today: 0,
+        tomorrow: 0,
+        thisWeek: 0,
+        thisMonth: 0
+      };
     } finally {
       setLoading(false);
     }
-  }, [sessionCounts]);
+  }, []);
 
   return (
     <SessionContext.Provider value={{ 
