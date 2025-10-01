@@ -131,6 +131,27 @@ class PushNotificationService {
   }
 
   /**
+   * Check if notification is already scheduled
+   */
+  async isNotificationScheduled(notificationId) {
+    if (isWeb) {
+      return this.scheduledWebNotifications.has(notificationId);
+    }
+
+    if (!isPushNotificationSupported) {
+      return false;
+    }
+
+    try {
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      return scheduled.some(n => n.content.data?.notificationId === notificationId);
+    } catch (error) {
+      console.error('Error checking scheduled notifications:', error);
+      return false;
+    }
+  }
+
+  /**
    * Save sent notifications history
    */
   async saveSentNotifications() {
@@ -397,6 +418,12 @@ class PushNotificationService {
     // Check if already sent to avoid duplicates
     if (this.wasNotificationSent(notification.id)) {
       console.log(`Notification ${notification.id} already sent, skipping`);
+      return null;
+    }
+
+    // Check if already scheduled
+    if (await this.isNotificationScheduled(notification.id)) {
+      console.log(`Notification ${notification.id} already scheduled, skipping`);
       return null;
     }
 

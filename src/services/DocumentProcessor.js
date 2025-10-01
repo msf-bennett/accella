@@ -292,6 +292,49 @@ async saveSessionSetupPreferences(documentId, preferences) {
   }
 }
 
+// Add around line 200
+async attachSetupDataToSessions(sessions, documentId) {
+  try {
+    const documents = await this.getStoredDocuments();
+    const document = documents.find(doc => doc.id === documentId);
+    
+    if (!document || !document.sessionSetup) {
+      return sessions; // No setup data to attach
+    }
+    
+    const { coachingPlanName, entityName, trainingTime } = document.sessionSetup;
+    
+    // Attach to all sessions
+    return sessions.map(weekSession => ({
+      ...weekSession,
+      planName: coachingPlanName,
+      academyName: entityName,
+      entityName: entityName,
+      
+      dailySessions: weekSession.dailySessions.map(daySession => ({
+        ...daySession,
+        planName: coachingPlanName,
+        academyName: entityName,
+        entityName: entityName,
+        trainingTime: trainingTime,
+        
+        // Also attach to nested sessions
+        sessionsForDay: daySession.sessionsForDay?.map(s => ({
+          ...s,
+          planName: coachingPlanName,
+          academyName: entityName,
+          entityName: entityName,
+          trainingTime: trainingTime
+        })) || []
+      }))
+    }));
+    
+  } catch (error) {
+    console.error('Error attaching setup data:', error);
+    return sessions;
+  }
+}
+
   // Web document selection using HTML input
 // In DocumentProcessor.js, replace the _selectDocumentWeb method:
 async _selectDocumentWeb() {
@@ -1713,7 +1756,12 @@ async analyzeDocumentWithAI(text, document, options = {}) {
       aiSuggestedImprovements: aiAnalysis.suggestions,
       aiExtractedMetadata: aiAnalysis.metadata
     };
-    
+
+    const enhancedSessions = await DocumentProcessor.attachSetupDataToSessions(
+      sessions, 
+      document.id
+    );
+        
     console.log('DocumentProcessor: AI-enhanced analysis complete');
     return enhancedPlan;
     
@@ -2216,26 +2264,26 @@ analyzeSessionStructure(text) {
 
 analyzeDurations(text) {
   const durationPatterns = [
-  // Standard formats
-  /(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi,
-  /(\d+)\s*-\s*(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi,
-  /duration[:\s]*(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi,
-  
-  // Decimal hours: "1.5 hours"
-  /(\d+\.?\d*)\s*hours?/gi,
-  
-  // Written format: "ninety minutes"
-  /(thirty|forty|forty-five|fifty|sixty|seventy|eighty|ninety|hundred|one hundred twenty)\s*minutes?/gi,
-  
-  // Session duration context
-  /session\s*(?:lasts?|duration|time)[:\s]*(\d+)\s*(min|minutes?|hrs?|hours?)/gi,
-  
-  // Time ranges with context: "from 60 to 90 minutes"
-  /from\s*(\d+)\s*to\s*(\d+)\s*(minutes?|hours?)/gi,
-  
-  // Approximate: "about 90 minutes", "approximately 1 hour"
-  /(?:about|approximately|around|roughly)\s*(\d+\.?\d*)\s*(minutes?|hours?)/gi
-];
+    // Standard formats
+    /(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi,
+    /(\d+)\s*-\s*(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi,
+    /duration[:\s]*(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi,
+    
+    // Decimal hours: "1.5 hours"
+    /(\d+\.?\d*)\s*hours?/gi,
+    
+    // Written format: "ninety minutes"
+    /(thirty|forty|forty-five|fifty|sixty|seventy|eighty|ninety|hundred|one hundred twenty)\s*minutes?/gi,
+    
+    // Session duration context
+    /session\s*(?:lasts?|duration|time)[:\s]*(\d+)\s*(min|minutes?|hrs?|hours?)/gi,
+    
+    // Time ranges with context: "from 60 to 90 minutes"
+    /from\s*(\d+)\s*to\s*(\d+)\s*(minutes?|hours?)/gi,
+    
+    // Approximate: "about 90 minutes", "approximately 1 hour"
+    /(?:about|approximately|around|roughly)\s*(\d+\.?\d*)\s*(minutes?|hours?)/gi
+  ];
   
   const durations = [];
   
@@ -2244,7 +2292,14 @@ analyzeDurations(text) {
     while ((match = pattern.exec(text)) !== null) {
       const value1 = parseInt(match[1]);
       const value2 = match[2] && !isNaN(parseInt(match[2])) ? parseInt(match[2]) : null;
-      const unit = (match[3] || match[2]).toLowerCase();
+      
+      // FIX: Safely get the unit with proper null checking
+      let unit = 'minutes'; // default
+      if (match[3]) {
+        unit = match[3].toLowerCase();
+      } else if (match[2] && typeof match[2] === 'string') {
+        unit = match[2].toLowerCase();
+      }
       
       durations.push({
         value: value2 ? [value1, value2] : value1,

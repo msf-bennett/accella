@@ -1154,9 +1154,38 @@ const renderSessionCard = ({ item: session, index }) => {
               <View style={styles.sessionInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                   <Text style={{ fontSize: 20, marginRight: 8 }}>{sessionState.icon}</Text>
-                  <Text style={[TEXT_STYLES.h4, { color: 'white', flex: 1 }]}>
-                    {session.title}
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    {/* Academy/Team Name */}
+                    <Text style={[TEXT_STYLES.caption, { 
+                      color: 'rgba(255,255,255,0.75)', 
+                      fontSize: 10,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                      fontWeight: '600',
+                      marginBottom: 2
+                    }]}>
+                      {session.entityName || session.academyName || 'Training Academy'}
+                      {session.sport && ` • ${session.sport}`}
+                    </Text>
+                    
+                    {/* Plan Name with Sport */}
+                      <Text style={[TEXT_STYLES.h4, { 
+                        color: 'white', 
+                        fontSize: 16,
+                        fontWeight: 'bold',
+                        marginBottom: 2
+                      }]}>
+                        {session.planName || session.title}
+                      </Text>
+                    
+                    {/* Week Context */}
+                    <Text style={[TEXT_STYLES.caption, { 
+                      color: 'rgba(255,255,255,0.85)', 
+                      marginBottom: 2 
+                    }]}>
+                      Week {session.weekNumber} • {session.day.charAt(0).toUpperCase() + session.day.slice(1)}
+                    </Text>
+                  </View>
                   {isFromPlan && (
                     <Chip
                       compact
@@ -1181,12 +1210,15 @@ const renderSessionCard = ({ item: session, index }) => {
                     {sessionState.state === 'upcoming' && '⋯ UPCOMING'}
                   </Text>
                 </View>
-                
-                {/* Time Info */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                  <Icon name="access-time" size={14} color="rgba(255,255,255,0.8)" />
-                  <Text style={[TEXT_STYLES.caption, { color: 'rgba(255,255,255,0.8)', marginLeft: 4 }]}>
-                    {formatSessionDate(session.date)}, {sessionTime}-{endTime} ({session.duration}min)
+
+                {/* Line 4: Training time */}
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Icon name="schedule" size={12} color="rgba(255,255,255,0.8)" />
+                  <Text style={[TEXT_STYLES.caption, { 
+                    color: 'rgba(255,255,255,0.8)', 
+                    marginLeft: 4 
+                  }]}>
+                    {formatSessionDate(session.date)} • {session.trainingTime || `${sessionTime}-${endTime}`}
                   </Text>
                 </View>
 

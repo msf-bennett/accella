@@ -435,9 +435,25 @@ const TrainingPlanLibrary = ({ navigation, route }) => {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.xs }}>
-                    <Text style={[TEXT_STYLES.h3, { color: 'white', marginBottom: 0, fontSize: 16 }]}>
-                      {plan.academyName || plan.title}
+                    <View style={{ flex: 1 }}>
+                      {/* Academy/Entity Name */}
+                      <Text style={[TEXT_STYLES.caption, { 
+                      color: 'rgba(255,255,255,0.7)', 
+                      fontStyle: 'italic',
+                      fontSize: 11,
+                      lineHeight: 14,
+                      marginTop: 2
+                    }]}>
+                      Document: {plan.originalName || 
+                        plan.sourceDocumentName || 
+                        (plan.sourceDocument ? `${plan.sourceDocument.slice(-8)}` : 'Imported')}
                     </Text>
+                      
+                      {/* Plan Name */}
+                      <Text style={[TEXT_STYLES.h3, { color: 'white', marginTop: 2, fontSize: 16 }]}>
+                        {plan.planName || plan.title}
+                      </Text>
+                    </View>
                     {isNewPlan && (
                       <Text style={{
                         marginLeft: 8,

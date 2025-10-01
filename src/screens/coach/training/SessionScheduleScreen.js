@@ -718,43 +718,61 @@ const SessionScheduleScreen = ({ navigation, route }) => {
         <View style={styles.sessionInfoHeader}>
           <Avatar.Text
             size={48}
-            label={academyName.charAt(0)}
+            label={(session.entityName || academyName).charAt(0)}
             style={{ backgroundColor: colors.primary }}
           />
           <View style={styles.sessionInfoDetails}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={[textStyles.h3, { marginBottom: spacing.xs, flex: 1 }]}>
-                {session.title}
-              </Text>
-              {/* Copy Icon Button - moved here */}
-                    <Icon name="content-copy" size={18} color={colors.primary} />
-                    <Text style={[
-                      textStyles.body2, 
-                      { 
-                        marginLeft: 6, 
-                        color: colors.primary,
-                        fontWeight: '600' 
-                      }
-                    ]}>
-                      Copy
-                    </Text>
-                </View>
+              <View style={{ flex: 1 }}>
+                {/* Line 1: Academy/Team/Individual • Sport */}
+                <Text style={[TEXT_STYLES.caption, { 
+                  color: colors.textSecondary,
+                  textTransform: 'uppercase',
+                  fontSize: 10,
+                  letterSpacing: 0.5,
+                  fontWeight: '600',
+                  marginBottom: 2
+                }]}>
+                  {session.entityName || session.academyName || academyName}
+                  {session.sport && ` • ${session.sport}`}
+                </Text>
+                
+                {/* Line 2: Plan Name */}
+                <Text style={[TEXT_STYLES.h3, { 
+                  fontSize: 18,
+                  fontWeight: 'bold',
+                  marginBottom: 2
+                }]}>
+                  {session.planName || session.title}
+                </Text>
+                
+                {/* Line 3: Week + Day */}
+                <Text style={[TEXT_STYLES.body2, { 
+                  color: colors.textSecondary,
+                  marginBottom: 2
+                }]}>
+                  Week {session.weekNumber} of {session.totalWeeks || 12} • {session.day.charAt(0).toUpperCase() + session.day.slice(1)}
+                </Text>
+                
+                {/* Line 4: Training time */}
                 <View style={styles.sessionMetrics}>
                   <View style={styles.metricItem}>
                     <Icon name="schedule" size={16} color={colors.textSecondary} />
-                    <Text style={[textStyles.caption, { marginLeft: 4 }]}>
-                      {session.time} • {session.duration}min
+                    <Text style={[TEXT_STYLES.caption, { marginLeft: 4 }]}>
+                      {session.trainingTime || `${session.time} (${session.duration}min)`}
                     </Text>
                   </View>
                   <View style={styles.metricItem}>
                     <Icon name="location-on" size={16} color={colors.textSecondary} />
-                    <Text style={[textStyles.caption, { marginLeft: 4 }]}>
+                    <Text style={[TEXT_STYLES.caption, { marginLeft: 4 }]}>
                       {session.location || 'Training Field'}
                     </Text>
                   </View>
                 </View>
               </View>
             </View>
+          </View>
+        </View>
 
             {/* Rest of the existing code remains the same... */}
             <View style={styles.sessionChips}>

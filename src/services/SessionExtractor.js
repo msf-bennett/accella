@@ -327,6 +327,43 @@ multiLingualWeekDetection(text) {
   return matches;
 }
 
+async attachSetupDataToSessions(sessions, documentId) {
+  try {
+    const documents = await this.getStoredDocuments();
+    const document = documents.find(doc => doc.id === documentId);
+    
+    if (!document || !document.sessionSetup) {
+      return sessions;
+    }
+    
+    const { coachingPlanName, entityName, trainingTime } = document.sessionSetup;
+    
+    return sessions.map(weekSession => ({
+      ...weekSession,
+      planName: coachingPlanName,
+      entityName: entityName,
+      
+      dailySessions: weekSession.dailySessions.map(daySession => ({
+        ...daySession,
+        planName: coachingPlanName,
+        entityName: entityName,
+        trainingTime: trainingTime,
+        
+        sessionsForDay: daySession.sessionsForDay?.map(s => ({
+          ...s,
+          planName: coachingPlanName,
+          entityName: entityName,
+          trainingTime: trainingTime
+        })) || []
+      }))
+    }));
+    
+  } catch (error) {
+    console.error('Error attaching setup data:', error);
+    return sessions;
+  }
+}
+
 // Main extraction method
 async extractSessionsFromDocument(document, trainingPlan) {
   try {
@@ -362,12 +399,18 @@ async extractSessionsFromDocument(document, trainingPlan) {
         sessions = await this.extractUnstructuredContent(text, structureAnalysis, academyInfo);
     }
     
+    //const DocumentProcessor = (await import('./DocumentProcessor')).default;
+    const enhancedSessions = await DocumentProcessor.attachSetupDataToSessions(
+      sessions, 
+      document.id
+    );
+
     return {
       academyInfo,
-      sessions,
+      sessions: enhancedSessions,
       structureAnalysis,
-      totalWeeks: sessions.length,
-      totalSessions: sessions.reduce((sum, week) => sum + week.dailySessions.length, 0),
+      totalWeeks: enhancedSessions.length,
+      totalSessions: enhancedSessions.reduce((sum, week) => sum + week.dailySessions.length, 0),
       organizationPattern: structureAnalysis.organizationPattern,
       extractedAt: new Date().toISOString(),
       sourceDocument: document.id,

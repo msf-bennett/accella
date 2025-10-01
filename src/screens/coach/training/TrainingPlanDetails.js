@@ -1559,20 +1559,43 @@ const renderSessions = () => {
                         >
                           <View style={styles.dailySessionHeader}>
                             <View style={{ flex: 1 }}>
-                              <Text style={[TEXT_STYLES.subtitle1, { fontWeight: '600' }]}>
-                                {dailySession.day === 'week_plan' ? 'Weekly Overview' : `${dailySession.day.charAt(0).toUpperCase() + dailySession.day.slice(1)} Training`}
+                            {/* Line 1: Academy/Team • Sport */}
+                            <Text style={[TEXT_STYLES.caption, { 
+                              color: COLORS.textSecondary,
+                              textTransform: 'uppercase',
+                              fontSize: 10,
+                              letterSpacing: 0.5,
+                              fontWeight: '600'
+                            }]}>
+                              {dailySession.entityName || plan.entityName || plan.academyName || 'Training Program'}
+                              {(dailySession.sport || plan.sport) && ` • ${dailySession.sport || plan.sport}`}
+                            </Text>
+                            
+                            {/* Line 2: Plan Name */}
+                            <Text style={[TEXT_STYLES.subtitle1, { 
+                              fontWeight: '600', 
+                              marginTop: 2,
+                              fontSize: 16
+                            }]}>
+                              {dailySession.planName || plan.planName || plan.title}
+                            </Text>
+                            
+                            {/* Line 3: Week + Day */}
+                            <Text style={[TEXT_STYLES.caption, { 
+                              color: COLORS.textSecondary, 
+                              marginTop: 1 
+                            }]}>
+                              Week {weekSession.weekNumber} • {dailySession.day === 'week_plan' ? 'Weekly Overview' : 
+                              `${dailySession.day.charAt(0).toUpperCase() + dailySession.day.slice(1)}`}
+                            </Text>
+                            
+                            {/* Line 4: Training time */}
+                            <View style={styles.sessionMetaInfo}>
+                              <Icon name="schedule" size={14} color={COLORS.textSecondary} />
+                              <Text style={[TEXT_STYLES.caption, { marginLeft: 4, color: COLORS.textSecondary }]}>
+                                {dailySession.trainingTime || `${dailySession.time} • ${dailySession.duration}min`}
                               </Text>
-                              <View style={styles.sessionMetaInfo}>
-                                <Icon name="schedule" size={14} color={COLORS.textSecondary} />
-                                <Text style={[TEXT_STYLES.caption, { marginLeft: 4, color: COLORS.textSecondary }]}>
-                                  {dailySession.time} • {dailySession.duration}min
-                                </Text>
-                                <Text style={{ color: COLORS.textSecondary, marginHorizontal: 8 }}>•</Text>
-                                <Icon name="location-on" size={14} color={COLORS.textSecondary} />
-                                <Text style={[TEXT_STYLES.caption, { marginLeft: 4, color: COLORS.textSecondary }]}>
-                                  {dailySession.location}
-                                </Text>
-                              </View>
+                            </View>
                               
                               {dailySession.focus && dailySession.focus.length > 0 && (
                                 <View style={{ flexDirection: 'row', marginTop: SPACING.xs }}>

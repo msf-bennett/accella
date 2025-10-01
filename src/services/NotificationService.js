@@ -5,6 +5,7 @@ import PushNotificationService from './PushNotificationService';
 
 const NOTIFICATIONS_KEY = 'app_notifications';
 const DISMISSED_KEY = 'dismissed_notifications';
+const PUSH_SENT_KEY = 'push_notifications_sent';
 
 class NotificationService {
   // Generate notifications from sessions
@@ -138,6 +139,28 @@ class NotificationService {
     }
   }
   
+  // Get push sent notifications
+  async getPushSentNotifications() {
+    try {
+      const sent = await AsyncStorage.getItem(PUSH_SENT_KEY);
+      return new Set(sent ? JSON.parse(sent) : []);
+    } catch (error) {
+      console.error('Error loading push sent notifications:', error);
+      return new Set();
+    }
+  }
+
+  // Mark push notification as sent
+  async markPushNotificationSent(notificationId) {
+    try {
+      const sent = await this.getPushSentNotifications();
+      sent.add(notificationId);
+      await AsyncStorage.setItem(PUSH_SENT_KEY, JSON.stringify([...sent]));
+    } catch (error) {
+      console.error('Error marking push notification sent:', error);
+    }
+  }
+  
   // Mark notification as read
   async markAsRead(notificationId) {
     const notifications = await this.getNotifications();
@@ -164,6 +187,11 @@ class NotificationService {
     dismissed.add(notificationId);
     await AsyncStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissed]));
     
+    // Remove from push sent tracking when dismissed
+    const pushSent = await this.getPushSentNotifications();
+    pushSent.delete(notificationId);
+    await AsyncStorage.setItem(PUSH_SENT_KEY, JSON.stringify([...pushSent]));
+    
     // Update badge count
     const unreadCount = filtered.filter(n => !n.read).length;
     await PushNotificationService.setBadgeCount(unreadCount);
@@ -179,6 +207,9 @@ class NotificationService {
     // Add all current notification IDs to dismissed list
     notifications.forEach(n => dismissed.add(n.id));
     await AsyncStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissed]));
+    
+    // Clear push sent tracking
+    await AsyncStorage.setItem(PUSH_SENT_KEY, JSON.stringify([]));
     
     await this.saveNotifications([]);
     await PushNotificationService.setBadgeCount(0);
@@ -225,24 +256,32 @@ class NotificationService {
     
     const generated = await this.generateSessionNotifications(allSessions);
     const dismissed = await this.getDismissedNotifications();
-    
-    // Filter out dismissed notifications
-    const active = generated.filter(n => !dismissed.has(n.id));
-    
-    console.log(`📊 Generated ${generated.length} notifications, ${active.length} active after filtering`);
-    
-    // Send push notifications for new notifications
-    for (const notification of active) {
-      await this.sendPushNotification(notification);
-    }
-    
-    // Merge with existing non-session notifications
     const existing = await this.getNotifications();
-    const nonSession = existing.filter(n => 
-      !n.type.includes('session') && !n.type.includes('missed')
+    const pushSent = await this.getPushSentNotifications();
+    
+    // Create a Set of existing notification IDs for fast lookup
+    const existingIds = new Set(existing.map(n => n.id));
+    
+    // Filter out dismissed notifications AND already existing ones
+    const active = generated.filter(n => 
+      !dismissed.has(n.id) && !existingIds.has(n.id)
     );
     
-    const merged = [...nonSession, ...active];
+    console.log(`📊 Generated ${generated.length} notifications, ${active.length} new after filtering`);
+    
+    // Send push notifications ONLY for new notifications that haven't been pushed before
+    for (const notification of active) {
+      if (!pushSent.has(notification.id)) {
+        await this.sendPushNotification(notification);
+        await this.markPushNotificationSent(notification.id);
+        console.log(`✅ Sent push for: ${notification.id}`);
+      } else {
+        console.log(`⏭️ Skipping push for ${notification.id} - already sent`);
+      }
+    }
+    
+    // Merge existing with new active notifications (avoid duplicates)
+    const merged = [...existing, ...active];
     await this.saveNotifications(merged);
     
     // Update badge count
